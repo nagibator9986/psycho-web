@@ -1,81 +1,94 @@
 {% extends "base.html" %}
+{% from '_macros.html' import avatar %}
+
+{% block title %}{{ post.title }}{% endblock %}
 
 {% block content %}
+{% set me = get_current_user() %}
 <div class="row">
-    <div class="col-lg-8">
+    <div class="col-lg-9">
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="{{ url_for('posts') }}">Форум</a></li>
+                <li class="breadcrumb-item active">{{ post.title|truncate(40) }}</li>
+            </ol>
+        </nav>
+
         <div class="card mb-4">
             <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    {% if post.author.profile_pic %}
-                        <img src="{{ url_for('static', filename='uploads/' + post.author.profile_pic) }}" class="rounded-circle me-2" width="40" height="40">
-                    {% else %}
-                        <div class="rounded-circle bg-secondary me-2" style="width: 40px; height: 40px;"></div>
-                    {% endif %}
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    {{ avatar(None if post.is_anonymous else post.author, 40) }}
                     <div>
-                        <h6 class="mb-0">{{ post.author.full_name if post.author.full_name else post.author.username }}</h6>
-                        <small class="text-muted">{{ post.created_at.strftime('%d.%m.%Y в %H:%M') }}</small>
+                        <div class="fw-semibold">{{ 'Аноним' if post.is_anonymous else post.author.display_name }}</div>
+                        <small class="text-muted">
+                            {{ post.created_at|ts('%d.%m.%Y в %H:%M') }}
+                            {% if post.updated_at and post.created_at and (post.updated_at - post.created_at).total_seconds() > 60 %}
+                                · изменено {{ post.updated_at|ts('%d.%m.%Y') }}
+                            {% endif %}
+                        </small>
                     </div>
                 </div>
-                
-                <h2>{{ post.title }}</h2>
-                <p>{{ post.content }}</p>
-                
-                {% if post.user_id == session.get('user_id') %}
-                    <div class="mt-3">
-                        <a href="#" class="btn btn-sm btn-outline-secondary">Редактировать</a>
-                        <a href="#" class="btn btn-sm btn-outline-danger">Удалить</a>
-                    </div>
+
+                <h1 class="h3">{{ post.title }}</h1>
+                <div class="text-pre">{{ post.content }}</div>
+
+                {% if post.user_id == me.id or can_moderate %}
+                <div class="mt-3 d-flex gap-2">
+                    {% if post.user_id == me.id %}
+                        <a href="{{ url_for('edit_post', post_id=post.id) }}" class="btn btn-sm btn-outline-secondary">Редактировать</a>
+                    {% endif %}
+                    <form method="post" action="{{ url_for('delete_post', post_id=post.id) }}" data-confirm="Удалить пост вместе с комментариями?">
+                        {{ csrf_field() }}
+                        <button class="btn btn-sm btn-outline-danger">Удалить</button>
+                    </form>
+                </div>
                 {% endif %}
             </div>
         </div>
-        
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0">Комментарии ({{ post.comments|length }})</h5>
-            </div>
+
+        <div class="card mb-4" id="comments">
+            <div class="card-header"><h5 class="mb-0">Комментарии ({{ post.comments|length }})</h5></div>
             <div class="card-body">
-                {% if post.comments %}
-                    {% for comment in post.comments %}
-                    <div class="mb-3 pb-3 border-bottom">
-                        <div class="d-flex align-items-center mb-2">
-                            {% if not comment.is_anonymous %}
-                                {% if comment.author.profile_pic %}
-                                    <img src="{{ url_for('static', filename='uploads/' + comment.author.profile_pic) }}" class="rounded-circle me-2" width="30" height="30">
-                                {% else %}
-                                    <div class="rounded-circle bg-secondary me-2" style="width: 30px; height: 30px;"></div>
-                                {% endif %}
-                                <h6 class="mb-0">{{ comment.author.username }}</h6>
-                            {% else %}
-                                <div class="rounded-circle bg-secondary me-2" style="width: 30px; height: 30px;"></div>
-                                <h6 class="mb-0">Аноним</h6>
+                {% for comment in post.comments %}
+                <div class="mb-3 pb-3 border-bottom">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        {{ avatar(None if comment.is_anonymous else comment.author, 30) }}
+                        <span class="fw-semibold">
+                            {% if comment.is_anonymous %}Аноним{% else %}{{ comment.author.display_name }}
+                                {% if comment.author.role == 'psychologist' %}<span class="badge bg-primary-subtle text-primary border ms-1">психолог</span>{% endif %}
                             {% endif %}
-                            <small class="text-muted ms-auto">{{ comment.created_at.strftime('%H:%M %d.%m.%Y') }}</small>
-                        </div>
-                        <p>{{ comment.content }}</p>
+                        </span>
+                        <small class="text-muted ms-auto">{{ comment.created_at|ts }}</small>
+                        {% if comment.user_id == me.id or can_moderate %}
+                            <form method="post" action="{{ url_for('delete_comment', comment_id=comment.id) }}" data-confirm="Удалить комментарий?">
+                                {{ csrf_field() }}
+                                <button class="btn btn-sm btn-link text-danger p-0 ms-2" title="Удалить"><i class="bi bi-trash"></i></button>
+                            </form>
+                        {% endif %}
                     </div>
-                    {% endfor %}
+                    <div class="text-pre">{{ comment.content }}</div>
+                </div>
                 {% else %}
                     <p class="text-muted">Пока нет комментариев. Будьте первым!</p>
-                {% endif %}
-                
-                {% if 'user_id' in session %}
-                    <form method="POST" action="{{ url_for('add_comment', post_id=post.id) }}">
-                        <div class="mb-3">
-                            <textarea class="form-control" name="content" rows="3" placeholder="Напишите комментарий..." required></textarea>
-                        </div>
-                        {% if is_student() %}
-                            <div class="form-check mb-3">
-                                <input class="form-check-input" type="checkbox" id="is_anonymous" name="is_anonymous">
-                                <label class="form-check-label" for="is_anonymous">Опубликовать анонимно</label>
-                            </div>
-                        {% endif %}
-                        <button type="submit" class="btn btn-primary">Отправить</button>
-                    </form>
-                {% else %}
-                    <div class="alert alert-info">
-                        <a href="{{ url_for('login') }}" class="alert-link">Войдите</a>, чтобы оставить комментарий.
+                {% endfor %}
+
+                <form method="POST" action="{{ url_for('add_comment', post_id=post.id) }}">
+                    {{ csrf_field() }}
+                    <div class="mb-2">
+                        <textarea class="form-control" name="content" rows="3" maxlength="5000" placeholder="Напишите комментарий..." required></textarea>
                     </div>
-                {% endif %}
+                    {% if is_student() %}
+                        <div class="form-check mb-2">
+                            {% set own_anon = post.is_anonymous and post.user_id == me.id %}
+                            <input class="form-check-input" type="checkbox" id="is_anonymous" name="is_anonymous" value="1"
+                                   {% if own_anon %}checked{% endif %}>
+                            <label class="form-check-label" for="is_anonymous">
+                                Анонимно{% if own_anon %} — пост вы опубликовали анонимно, ответ под своим именем раскроет авторство{% endif %}
+                            </label>
+                        </div>
+                    {% endif %}
+                    <button type="submit" class="btn btn-primary">Отправить</button>
+                </form>
             </div>
         </div>
     </div>

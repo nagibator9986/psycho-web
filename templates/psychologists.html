@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from '_macros.html' import avatar, empty %}
+
+{% block title %}Психологи{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-4">Наши психологи</h1>
+
+{% if psychologists %}
+<div class="row g-4">
+    {% for p in psychologists %}
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="mb-3">{{ avatar(p, 96) }}</div>
+                <h5 class="card-title">{{ p.display_name }}</h5>
+                <p class="card-text text-muted text-pre">{{ p.bio or 'Психолог' }}</p>
+            </div>
+            <div class="card-footer bg-transparent border-0 text-center pb-3">
+                {% if is_student() %}
+                    <a href="{{ url_for('chat', contact_id=p.id) }}" class="btn btn-sm btn-primary">Написать</a>
+                    <a href="{{ url_for('anon_chat', psychologist_id=p.id) }}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-incognito"></i> Анонимно
+                    </a>
+                {% elif not get_current_user() %}
+                    <a href="{{ url_for('login', next=url_for('psychologists')) }}" class="btn btn-sm btn-outline-primary">Войдите, чтобы написать</a>
+                {% endif %}
+                {% if get_current_user() %}
+                    <a href="{{ url_for('profile', username=p.username) }}" class="btn btn-sm btn-light">Профиль</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+    {{ empty('Психологи пока не добавлены', 'person') }}
+{% endif %}
+{% endblock %}

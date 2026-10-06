@@ -1,35 +1,51 @@
 {% extends "base.html" %}
 
-{% block content %}
-<div class="container mt-5">
-    <h1 class="mb-4">Редактировать тест</h1>
+{% block title %}Редактирование теста{% endblock %}
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-9">
+    <h1 class="h3 mb-1">Редактирование теста</h1>
+    <p class="text-muted mb-4">{{ TEST_TYPES.get(test.test_type, test.test_type) }} · {{ test.questions|length }} вопросов</p>
 
     <form method="POST">
-        <div class="mb-3">
-            <label for="title" class="form-label">Название теста</label>
-            <input type="text" class="form-control" id="title" name="title" value="{{ test.title }}" required>
+      {{ csrf_field() }}
+      <div class="row g-4">
+        <div class="col-md-6">
+          <h5>Русский</h5>
+          <div class="mb-3">
+            <label for="title" class="form-label">Название (RU)</label>
+            <input type="text" class="form-control" id="title" name="title" maxlength="200" value="{{ test.title }}">
+          </div>
+          <div class="mb-3">
+            <label for="description" class="form-label">Описание / инструкция (RU)</label>
+            <textarea class="form-control" id="description" name="description" rows="5">{{ test.description or '' }}</textarea>
+          </div>
         </div>
-        <div class="mb-3">
-            <label for="description" class="form-label">Описание</label>
-            <textarea class="form-control" id="description" name="description" rows="3">{{ test.description or '' }}</textarea>
+        <div class="col-md-6">
+          <h5>Қазақша</h5>
+          <div class="mb-3">
+            <label for="title_kk" class="form-label">Атауы (KZ)</label>
+            <input type="text" class="form-control" id="title_kk" name="title_kk" maxlength="200" value="{{ test.title_kk or '' }}">
+          </div>
+          <div class="mb-3">
+            <label for="description_kk" class="form-label">Сипаттамасы (KZ)</label>
+            <textarea class="form-control" id="description_kk" name="description_kk" rows="5">{{ test.description_kk or '' }}</textarea>
+          </div>
         </div>
-        <div class="mb-3 form-check">
-            <input type="checkbox" class="form-check-input" id="is_active" name="is_active" {% if test.is_active %}checked{% endif %}>
-            <label class="form-check-label" for="is_active">Тест активен</label>
-        </div>
-        <button type="submit" class="btn btn-primary">Сохранить изменения</button>
-        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Отмена</a>
+      </div>
+
+      <div class="mb-4 form-check form-switch">
+        <input type="checkbox" class="form-check-input" id="is_active" name="is_active" {% if test.is_active %}checked{% endif %}>
+        <label class="form-check-label" for="is_active">Тест активен — студенты видят его в списке</label>
+      </div>
+
+      <div class="d-flex gap-2 flex-wrap">
+        <button type="submit" class="btn btn-primary">Сохранить</button>
+        <a href="{{ url_for('add_questions', test_id=test.id) }}" class="btn btn-outline-secondary">Вопросы и интерпретации</a>
+        <a href="{{ url_for('tests') }}" class="btn btn-light">Отмена</a>
+      </div>
     </form>
+  </div>
 </div>
 {% endblock %}

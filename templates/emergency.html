@@ -1,48 +1,76 @@
 {% extends "base.html" %}
 
+{% block title %}Экстренная помощь{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-lg-8">
+    <div class="col-lg-9">
         <div class="card border-danger mb-4">
             <div class="card-header bg-danger text-white">
-                <h2 class="mb-0">Экстренная психологическая помощь</h2>
+                <h1 class="h3 mb-0">Экстренная психологическая помощь</h1>
             </div>
             <div class="card-body">
-                <h4 class="text-danger mb-4">Если вам срочно нужна помощь:</h4>
-                
                 <div class="alert alert-danger">
-                    <h5><i class="bi bi-telephone me-2"></i>Телефоны экстренной помощи:</h5>
-                    <ul class="mb-0">
-                        <li>Казахстанский телефон доверия: <strong>8-800-2000-122</strong></li>
-                        <li>Кризисная линия: <strong>8-800-333-44-34</strong></li>
-                        <li>Телефон горячей линии: <strong>8-495-989-50-50</strong></li>
-                    </ul>
+                    <h5 class="alert-heading"><i class="bi bi-exclamation-octagon me-2"></i>Если есть угроза жизни — звоните сразу</h5>
+                    <div class="d-flex flex-wrap gap-2 mt-2">
+                        <a href="tel:112" class="btn btn-danger btn-lg"><i class="bi bi-telephone-fill"></i> 112 — экстренные службы</a>
+                        <a href="tel:103" class="btn btn-outline-danger btn-lg"><i class="bi bi-telephone"></i> 103 — скорая помощь</a>
+                    </div>
                 </div>
-                
-                <div class="alert alert-warning">
-                    <h5><i class="bi bi-lightning-charge me-2"></i>Если вам нужна срочная помощь на этой платформе:</h5>
-                    <ol>
-                        <li>Напишите анонимное сообщение любому психологу через <a href="{{ url_for('messages') }}" class="alert-link">раздел сообщений</a></li>
-                        <li>Укажите в сообщении, что вам нужна срочная помощь</li>
-                        <li>Психологи ответят вам как можно быстрее</li>
+
+                <h5 class="mt-4 mb-3">Бесплатные телефоны доверия в Казахстане</h5>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="stat-tile">
+                            <a href="tel:150" class="stat-value text-decoration-none">150</a>
+                            <div class="fw-semibold mt-1">Национальный телефон доверия для детей и молодёжи</div>
+                            <div class="small text-muted">
+                                Анонимно, бесплатно. Можно написать в WhatsApp:
+                                <a href="https://wa.me/77081060810" target="_blank" rel="noopener">+7 708 106 08 10</a>.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="stat-tile">
+                            <a href="tel:111" class="stat-value text-decoration-none">111</a>
+                            <div class="fw-semibold mt-1">Единый контакт-центр по вопросам семьи и защиты прав детей</div>
+                            <div class="small text-muted">
+                                Круглосуточно, бесплатно, конфиденциально. Насилие, буллинг, угроза жизни и здоровью.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {% if support_phone or support_email %}
+                <div class="alert alert-primary mt-4 mb-0">
+                    <h5 class="alert-heading">Психологическая служба{% if org_name %} — {{ org_name }}{% endif %}</h5>
+                    {% if support_phone %}<div><i class="bi bi-telephone me-1"></i> {{ support_phone }}</div>{% endif %}
+                    {% if support_email %}<div><i class="bi bi-envelope me-1"></i> <a href="mailto:{{ support_email }}">{{ support_email }}</a></div>{% endif %}
+                </div>
+                {% endif %}
+
+                <div class="alert alert-warning mt-4">
+                    <h5><i class="bi bi-chat-dots me-2"></i>Написать психологу на платформе</h5>
+                    <ol class="mb-0">
+                        <li>Откройте <a href="{{ url_for('messages') }}" class="alert-link">сообщения</a> — можно выбрать <b>анонимный чат</b>, тогда психолог не увидит ваше имя.</li>
+                        <li>Напишите, что вам нужна срочная помощь.</li>
+                        <li>Психолог ответит, как только сможет. Если ждать нельзя — звоните по телефонам выше.</li>
                     </ol>
                 </div>
-                
+
                 <div class="alert alert-info">
-                    <h5><i class="bi bi-info-circle me-2"></i>Помните:</h5>
-                    <p>Вы не одиноки. Обращение за помощью - это признак силы, а не слабости. Мы здесь, чтобы помочь вам.</p>
+                    <h5><i class="bi bi-heart me-2"></i>Помните</h5>
+                    <p class="mb-0">Вы не одиноки. Обратиться за помощью — это признак силы, а не слабости.
+                        Если плохо кому-то рядом с вами — побудьте с этим человеком и помогите ему позвонить.</p>
                 </div>
-                
-                <div class="text-center mt-4">
-                    <a href="{{ url_for('messages') }}" class="btn btn-danger btn-lg me-3">
-                        <i class="bi bi-chat-dots"></i> Написать психологу
-                    </a>
-                    <a href="{{ url_for('tests') }}" class="btn btn-outline-danger btn-lg">
-                        <i class="bi bi-clipboard-check"></i> Пройти тест
-                    </a>
+
+                <div class="text-center mt-4 d-flex justify-content-center gap-2 flex-wrap">
+                    <a href="{{ url_for('messages') }}" class="btn btn-danger btn-lg"><i class="bi bi-chat-dots"></i> Написать психологу</a>
+                    <a href="{{ url_for('psychologists') }}" class="btn btn-outline-danger btn-lg"><i class="bi bi-people"></i> Наши психологи</a>
                 </div>
             </div>
         </div>
+        <p class="small text-muted">Номера проверены в октябре 2026 г. Режим работы линии 150 может меняться — если не дозвонились, звоните 111 или 112.</p>
     </div>
 </div>
 {% endblock %}

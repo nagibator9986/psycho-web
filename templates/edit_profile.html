@@ -1,51 +1,65 @@
 {% extends "base.html" %}
+{% from '_macros.html' import avatar %}
+
+{% block title %}Редактирование профиля{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-8">
         <div class="card shadow-sm">
-            <div class="card-body p-5">
+            <div class="card-body p-4 p-md-5">
                 <h2 class="card-title text-center mb-4">Редактирование профиля</h2>
                 <form method="POST" action="{{ url_for('edit_profile') }}" enctype="multipart/form-data">
+                    {{ csrf_field() }}
                     <div class="mb-3 text-center">
+                        <div class="mb-3" id="avatar-box">{{ avatar(user, 140) }}</div>
+                        <img id="avatar-preview" class="rounded-circle object-fit-cover mb-3 d-none" width="140" height="140" alt="">
+                        <label for="profile_pic" class="form-label d-block">Фото профиля (PNG, JPG, GIF, WEBP, до 5 МБ)</label>
+                        <input type="file" class="form-control" id="profile_pic" name="profile_pic"
+                               accept="image/png,image/jpeg,image/gif,image/webp">
                         {% if user.profile_pic %}
-                            <img src="{{ url_for('static', filename='uploads/' + user.profile_pic) }}" class="rounded-circle mb-3" width="150" height="150" id="profile-pic-preview">
-                        {% else %}
-                            <div class="rounded-circle bg-secondary mb-3 mx-auto" style="width: 150px; height: 150px;" id="profile-pic-preview"></div>
+                        <div class="form-check text-start mt-2">
+                            <input class="form-check-input" type="checkbox" id="remove_pic" name="remove_pic" value="1">
+                            <label class="form-check-label" for="remove_pic">Удалить текущее фото</label>
+                        </div>
                         {% endif %}
-                        <input type="file" class="form-control" id="profile_pic" name="profile_pic" accept="image/*" onchange="previewImage(this)">
-                        <label for="profile_pic" class="form-label mt-2">Фото профиля</label>
                     </div>
                     <div class="mb-3">
                         <label for="full_name" class="form-label">Полное имя</label>
-                        <input type="text" class="form-control" id="full_name" name="full_name" value="{{ user.full_name if user.full_name }}">
+                        <input type="text" class="form-control" id="full_name" name="full_name" maxlength="100"
+                               value="{{ user.full_name or '' }}" required>
                     </div>
                     <div class="mb-3">
                         <label for="bio" class="form-label">О себе</label>
-                        <textarea class="form-control" id="bio" name="bio" rows="3">{{ user.bio if user.bio }}</textarea>
+                        <textarea class="form-control" id="bio" name="bio" rows="4" maxlength="2000">{{ user.bio or '' }}</textarea>
+                        {% if user.role == 'psychologist' %}
+                            <div class="form-text">Студенты видят этот текст в списке психологов: специализация, часы приёма, кабинет.</div>
+                        {% endif %}
                     </div>
-                    <button type="submit" class="btn btn-primary w-100 py-2">Сохранить изменения</button>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary flex-grow-1">Сохранить изменения</button>
+                        <a href="{{ url_for('profile', username=user.username) }}" class="btn btn-light">Отмена</a>
+                    </div>
                 </form>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block extra_js %}
 <script>
-function previewImage(input) {
-    const preview = document.getElementById('profile-pic-preview');
-    const file = input.files[0];
+document.getElementById('profile_pic').addEventListener('change', function () {
+    const file = this.files[0];
+    if (!file) return;
     const reader = new FileReader();
-    
-    reader.onloadend = function() {
-        preview.style.backgroundImage = 'url(' + reader.result + ')';
-        preview.style.backgroundSize = 'cover';
-        preview.style.backgroundPosition = 'center';
-    }
-    
-    if (file) {
-        reader.readAsDataURL(file);
-    }
-}
+    reader.onload = function () {
+        const img = document.getElementById('avatar-preview');
+        img.src = reader.result;
+        img.classList.remove('d-none');
+        document.getElementById('avatar-box').classList.add('d-none');
+    };
+    reader.readAsDataURL(file);
+});
 </script>
 {% endblock %}

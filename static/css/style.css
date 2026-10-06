@@ -135,7 +135,9 @@ a:focus:not(:focus-visible) {
     }
     100% {
         opacity: 1;
-        transform: translateY(0) scale(1);
+        /* none, а не translateY(0): иначе карточка остаётся «контейнером»
+           для position: fixed и модальные окна внутри неё обрезаются */
+        transform: none;
         box-shadow: var(--app-shadow-soft);
     }
 }
@@ -1070,4 +1072,155 @@ body.nav-open .burger-line:nth-child(3) {
 .app-mobile-link.active {
     background-color: rgba(144, 97, 255, 0.08);
     text-decoration: none;
+}
+
+/* =========================================
+   ДОПОЛНЕНИЯ: аватары, чат, пустые состояния, утилиты
+   ========================================= */
+
+.text-pre {
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
+.avatar-initial {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--app-primary-soft);
+    color: var(--app-primary-strong);
+    font-weight: 600;
+}
+
+.object-fit-cover {
+    object-fit: cover;
+}
+
+.empty-state {
+    text-align: center;
+    color: var(--app-text-muted);
+    padding: 1.5rem 1rem;
+}
+
+.empty-state i {
+    display: block;
+    font-size: 2rem;
+    margin-bottom: .4rem;
+    opacity: .6;
+}
+
+.stat-tile {
+    border: 1px solid var(--app-border-subtle);
+    border-radius: var(--app-radius-md);
+    padding: 1rem 1.1rem;
+    background: var(--app-surface);
+    height: 100%;
+}
+
+.stat-tile .stat-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.stat-tile .stat-label {
+    color: var(--app-text-muted);
+    font-size: .85rem;
+}
+
+.section-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-bottom: .75rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+}
+
+/* ----- Чат ----- */
+.chat-layout {
+    min-height: 60vh;
+}
+
+.chat-contacts .list-group-item.active {
+    background: var(--app-primary-soft);
+    color: var(--app-text-main);
+    border-color: var(--app-border-subtle);
+}
+
+.chat-window {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 60vh;
+}
+
+.chat-scroll {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    max-height: 55vh;
+    padding: 1rem;
+    background: var(--app-bg-soft);
+    border-radius: var(--app-radius-md);
+    border: 1px solid var(--app-border-subtle);
+}
+
+.chat-bubble {
+    max-width: 78%;
+    padding: .55rem .8rem;
+    border-radius: 14px;
+    margin-bottom: .5rem;
+    background: #fff;
+    border: 1px solid var(--app-border-subtle);
+}
+
+.chat-bubble.mine {
+    margin-left: auto;
+    background: var(--app-primary);
+    color: #fff;
+    border-color: transparent;
+}
+
+.chat-bubble .chat-meta {
+    font-size: .72rem;
+    opacity: .7;
+    margin-top: .2rem;
+}
+
+.anon-note {
+    background: var(--app-accent-soft);
+    border: 1px dashed rgba(249, 115, 22, .45);
+    border-radius: var(--app-radius-sm);
+    padding: .5rem .75rem;
+    font-size: .875rem;
+}
+
+/* ----- Тест ----- */
+.question-card.has-error {
+    border-color: var(--app-danger) !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, .12);
+}
+
+.result-alert {
+    border-left: 4px solid var(--app-danger);
+}
+
+.table td, .table th {
+    vertical-align: middle;
+}
+
+.hero-image {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--app-radius-lg);
+}
+
+/* Карточка страницы не обрезает выпадающие меню; фон-подсветка повторяет скругление */
+.app-page-card {
+    overflow: visible;
+}
+
+.app-card::before {
+    border-radius: inherit;
 }

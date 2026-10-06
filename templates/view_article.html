@@ -1,46 +1,48 @@
 {% extends "base.html" %}
+{% from '_macros.html' import avatar %}
 
 {% block title %}{{ article.title }}{% endblock %}
 
 {% block content %}
-<div class="container my-4">
-    <div class="card shadow-sm">
-        <div class="card-body">
-            <h1 class="card-title mb-4">{{ article.title }}</h1>
-            
-            {% if article.image_url %}
-                <img src="{{ url_for('static', filename='uploads/' + article.image_url) }}" class="img-fluid rounded mb-4" alt="{{ article.title }}" style="max-height: 400px; object-fit: cover;">
-            {% endif %}
-            
-            <div class="mb-4">
-                <p>{{ article.content }}</p>
-            </div>
-            
-            <div class="d-flex align-items-center mb-4">
-                {% if article.user.profile_pic %}
-                    <img src="{{ url_for('static', filename='uploads/' + article.user.profile_pic) }}" class="rounded-circle me-2" width="40" height="40" alt="{{ article.user.username }}">
-                {% else %}
-                    <div class="rounded-circle bg-secondary me-2" style="width: 40px; height: 40px;"></div>
-                {% endif %}
-                <div>
-                    <p class="mb-0">
-                        <strong>{{ article.user.full_name or article.user.username }}</strong>
-                        <br>
-                        <small class="text-muted">{{ article.created_at.strftime('%d.%m.%Y в %H:%M') }}</small>
-                    </p>
-                </div>
-            </div>
-            
-            <div class="d-flex justify-content-between">
-                <a href="{{ url_for('articles') }}" class="btn btn-outline-secondary">Назад к статьям</a>
-                {% if get_current_user() and get_current_user().id == article.user_id %}
-                    <div>
-                        <a href="#" class="btn btn-outline-primary me-2">Редактировать</a>
-                        <a href="#" class="btn btn-outline-danger">Удалить</a>
-                    </div>
-                {% endif %}
-            </div>
+{% set me = get_current_user() %}
+<article class="mx-auto" style="max-width: 820px;">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="{{ url_for('articles') }}">Статьи</a></li>
+            <li class="breadcrumb-item active">{{ article.title|truncate(40) }}</li>
+        </ol>
+    </nav>
+
+    <h1 class="mb-3">{{ article.title }}</h1>
+
+    <div class="d-flex align-items-center gap-2 mb-4">
+        {{ avatar(article.user, 40) }}
+        <div>
+            <div class="fw-semibold">{{ article.user.display_name if article.user else '' }}</div>
+            <small class="text-muted">{{ article.created_at|ts('%d.%m.%Y') }}</small>
         </div>
     </div>
-</div>
+
+    {% if article.image_url %}
+        <img src="{{ url_for('static', filename='uploads/' + article.image_url) }}" class="img-fluid rounded mb-4 w-100 object-fit-cover"
+             alt="" style="max-height: 420px;">
+    {% endif %}
+
+    <div class="text-pre mb-4" style="font-size: 1.05rem; line-height: 1.7;">{{ article.content }}</div>
+
+    <div class="d-flex justify-content-between flex-wrap gap-2">
+        <a href="{{ url_for('articles') }}" class="btn btn-light">Назад к статьям</a>
+        {% if me and (me.id == article.user_id or me.is_admin) %}
+            <div class="d-flex gap-2">
+                {% if me.id == article.user_id %}
+                    <a href="{{ url_for('edit_article', article_id=article.id) }}" class="btn btn-outline-primary">Редактировать</a>
+                {% endif %}
+                <form method="post" action="{{ url_for('delete_article', article_id=article.id) }}" data-confirm="Удалить статью?">
+                    {{ csrf_field() }}
+                    <button class="btn btn-outline-danger">Удалить</button>
+                </form>
+            </div>
+        {% endif %}
+    </div>
+</article>
 {% endblock %}

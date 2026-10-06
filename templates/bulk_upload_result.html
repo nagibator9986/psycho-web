@@ -1,43 +1,42 @@
-<!doctype html>
-<html lang="ru">
-<head>
-  <meta charset="utf-8">
-  <title>Результаты импорта</title>
-  <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:24px}
-    .ok{color:#0a7} .warn{color:#a70} .err{color:#c00}
-    table{border-collapse:collapse;width:100%}
-    th,td{border:1px solid #ddd;padding:8px} th{background:#f5f5f7}
-  </style>
-</head>
-<body>
-  <h1>Результаты импорта ({{ 'upsert' if mode=='upsert' else 'create_only' }})</h1>
-  <ul>
-    <li class="ok">Создано: <b>{{ created }}</b></li>
-    <li class="ok">Обновлено: <b>{{ updated }}</b></li>
-    <li class="warn">Пропущено: <b>{{ skipped }}</b></li>
-    <li class="err">Ошибок: <b>{{ errors|length }}</b></li>
-  </ul>
+{% extends "base.html" %}
 
-  {% if errors|length %}
-    <p><a href="data:text/csv;charset=utf-8,{{ error_csv|urlencode }}" download="import_errors.csv">
-      Скачать ошибки (CSV)
-    </a></p>
-    <table>
-      <thead><tr><th>Строка</th><th>Username</th><th>Email</th><th>Причина</th></tr></thead>
+{% block title %}Результат импорта{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-3">Импорт завершён</h1>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value text-success">{{ created }}</div><div class="stat-label">создано</div></div></div>
+  <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value text-primary">{{ updated }}</div><div class="stat-label">обновлено</div></div></div>
+  <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value text-warning">{{ skipped }}</div><div class="stat-label">пропущено</div></div></div>
+  <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value text-danger">{{ errors|length }}</div><div class="stat-label">ошибок</div></div></div>
+</div>
+
+{% if credentials_csv %}
+<div class="alert alert-warning">
+  <h5 class="alert-heading"><i class="bi bi-key"></i> Временные пароли ({{ credentials_count }})</h5>
+  <p>Для новых пользователей без пароля в файле сгенерированы случайные пароли. Скачайте список сейчас —
+     после ухода со страницы его не восстановить (пароли можно будет только сбросить заново).
+     При первом входе каждый задаст свой пароль.</p>
+  <a href="data:text/csv;charset=utf-8,{{ credentials_csv|urlencode }}" download="new_users_passwords.csv" class="btn btn-warning">
+    <i class="bi bi-download"></i> Скачать логины и пароли (CSV)
+  </a>
+</div>
+{% endif %}
+
+{% if errors %}
+  <p><a href="data:text/csv;charset=utf-8,{{ error_csv|urlencode }}" download="import_errors.csv">Скачать ошибки (CSV)</a></p>
+  <div class="table-responsive">
+    <table class="table table-sm">
+      <thead class="table-light"><tr><th>Строка</th><th>Username</th><th>Email</th><th>Причина</th></tr></thead>
       <tbody>
       {% for e in errors %}
-        <tr>
-          <td>{{ e.line }}</td>
-          <td>{{ e.username }}</td>
-          <td>{{ e.email }}</td>
-          <td class="err">{{ e.reason }}</td>
-        </tr>
+        <tr><td>{{ e.line }}</td><td>{{ e.username }}</td><td>{{ e.email }}</td><td class="text-danger">{{ e.reason }}</td></tr>
       {% endfor %}
       </tbody>
     </table>
-  {% endif %}
+  </div>
+{% endif %}
 
-  <p style="margin-top:16px"><a href="{{ url_for('admin.superadmin_home') }}">← Вернуться в SuperAdmin</a></p>
-</body>
-</html>
+<a href="{{ url_for('admin.superadmin_home') }}" class="btn btn-light mt-3">← К пользователям</a>
+{% endblock %}

@@ -1,65 +1,89 @@
 {% extends "base.html" %}
 
-{% block content %}
-<div class="row">
-  <div class="col-md-8">
-    <div class="card shadow-sm mb-4">
-      <div class="card-body">
-        <h2 class="card-title mb-4">
-          Добавление вопросов к тесту: 
-          {{ test.title }}{% if test.title_kk %} / {{ test.title_kk }}{% endif %}
-          <span class="badge bg-light text-dark ms-2">
-            {{ 'Обычный тест' if test.test_type=='classic' else 'Шкаловая методика' }}
-          </span>
-        </h2>
+{% block title %}Вопросы: {{ test.title|truncate(40) }}{% endblock %}
 
-        {% if test.questions %}
-        <div class="mb-4">
-          <h4>Текущие вопросы</h4>
-          <div class="list-group mb-3">
-            {% for question in test.questions %}
-            <div class="list-group-item">
-              <div class="d-flex justify-content-between align-items-start">
-                <div>
-                  <h6 class="mb-1">RU: {{ question.text }}</h6>
-                  {% if question.text_kk %}
-                    <div class="text-muted small">KZ: {{ question.text_kk }}</div>
-                  {% endif %}
-                  <small class="text-muted">{{ question.question_type }}</small>
-                  {% if question.options %}
-                  <div class="mt-2">
-                    {% for option in question.options %}
-                    <div class="small mb-1">
-                      <span class="badge bg-light text-dark me-1">
-                        RU: {{ option.text }} ({{ option.score }} баллов)
-                      </span>
-                      {% if option.text_kk %}
-                        <span class="badge bg-secondary text-white">
-                          KZ: {{ option.text_kk }}
-                        </span>
-                      {% endif %}
-                    </div>
-                    {% endfor %}
-                  </div>
-                  {% endif %}
-                </div>
-                <form action="{{ url_for('add_questions', test_id=test.id) }}" method="POST">
-                  <input type="hidden" name="delete_question" value="{{ question.id }}"/>
-                  <button type="submit" class="btn btn-sm btn-outline-danger">
-                    Удалить
-                  </button>
-                </form>
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-2">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{{ url_for('tests') }}">Мои тесты</a></li>
+    <li class="breadcrumb-item active">Вопросы</li>
+  </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
+  <div>
+    <h1 class="h3 mb-1">{{ test.title }}</h1>
+    {% if test.title_kk and test.title_kk != test.title %}<div class="text-muted">{{ test.title_kk }}</div>{% endif %}
+    <div class="small text-muted mt-1">
+      {{ TEST_TYPES.get(test.test_type, test.test_type) }} · {{ test.questions|length }} вопросов ·
+      максимальный балл {{ max_score }} · {{ result_count }} результатов ·
+      {% if test.is_active %}<span class="text-success">активен</span>{% else %}неактивен{% endif %}
+    </div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{{ url_for('edit_test', test_id=test.id) }}" class="btn btn-sm btn-outline-primary">Название и статус</a>
+    <a href="{{ url_for('take_test', test_id=test.id) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i> Предпросмотр</a>
+    <a href="{{ url_for('test_results', test_id=test.id) }}" class="btn btn-sm btn-success">Результаты</a>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-8">
+
+    <!-- Текущие вопросы -->
+    <div class="section-title"><i class="bi bi-list-ol"></i> Вопросы</div>
+    {% if test.questions %}
+      <div class="list-group mb-4">
+        {% for question in test.questions %}
+        <div class="list-group-item">
+          <div class="d-flex justify-content-between align-items-start gap-2">
+            <div class="flex-grow-1">
+              <div class="fw-semibold"><span class="text-muted me-1">{{ loop.index }}.</span> {{ question.text }}</div>
+              {% if question.text_kk %}<div class="text-muted small">KZ: {{ question.text_kk }}</div>{% endif %}
+              <small class="text-muted">{{ QUESTION_TYPES.get(question.question_type, question.question_type) }}</small>
+              {% if question.options and test.test_type == 'scale' %}
+                {% set scale_scores = test.scale_options|map(attribute='score')|list %}
+                {% set q_scores = question.options|map(attribute='score')|list %}
+                {% if q_scores != scale_scores %}
+                  <span class="badge bg-warning-subtle text-warning-emphasis border ms-1">
+                    свои баллы: {{ q_scores|join(' / ') }}{% if q_scores == scale_scores|reverse|list %} · обратный ключ{% endif %}
+                  </span>
+                {% endif %}
+              {% elif question.options %}
+              <div class="mt-1 d-flex flex-wrap gap-1">
+                {% for option in question.options %}
+                  <span class="badge bg-light text-dark border fw-normal">
+                    {{ option.text }}{% if option.text_kk %} / {{ option.text_kk }}{% endif %} — {{ option.score or 0 }}
+                  </span>
+                {% endfor %}
               </div>
+              {% endif %}
             </div>
-            {% endfor %}
+            <div class="d-flex gap-1">
+              <a href="{{ url_for('edit_question', test_id=test.id, question_id=question.id) }}"
+                 class="btn btn-sm btn-outline-primary" title="Редактировать"><i class="bi bi-pencil"></i></a>
+              <form action="{{ url_for('add_questions', test_id=test.id) }}" method="POST"
+                    data-confirm="Удалить вопрос {{ loop.index }}? Номера следующих вопросов сдвинутся (в подшкалах — тоже).">
+                {{ csrf_field() }}
+                <input type="hidden" name="delete_question" value="{{ question.id }}">
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="Удалить"><i class="bi bi-trash"></i></button>
+              </form>
+            </div>
           </div>
         </div>
-        {% endif %}
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-muted">Вопросов пока нет — добавьте первый ниже.</p>
+    {% endif %}
 
-        <!-- Форма добавления нового вопроса -->
-        <h4 class="mb-3">Новый вопрос</h4>
+    <!-- Новый вопрос -->
+    <div class="card mb-4" id="new-question">
+      <div class="card-body">
+        <h5 class="mb-3">Новый вопрос</h5>
         <form method="POST" action="{{ url_for('add_questions', test_id=test.id) }}">
-          <div class="row">
+          {{ csrf_field() }}
+          <div class="row g-3">
             <div class="col-md-6">
               <label for="text_ru" class="form-label">Текст вопроса (RU)</label>
               <textarea class="form-control" id="text_ru" name="text_ru" rows="2"></textarea>
@@ -70,207 +94,240 @@
             </div>
           </div>
 
-          {% if test.test_type == 'classic' %}
-          <div class="mt-3">
-            <label for="question_type" class="form-label">Тип вопроса</label>
-            <select class="form-select" id="question_type" name="question_type" required>
-              <option value="">-- Выберите тип --</option>
-              <option value="text">Текстовый ответ</option>
-              <option value="single_choice">Один вариант ответа</option>
-              <option value="multiple_choice">Несколько вариантов ответа</option>
-              <option value="scale_choice">Шкаловый (с вариантами и баллами)</option>
-            </select>
-          </div>
-
-          <div id="options-container" class="mt-3" style="display:none">
-            <label class="form-label">Варианты ответов</label>
-            <div class="small text-muted mb-1">Слева — русский, справа — казахский, затем баллы.</div>
-            <div id="options-list"></div>
-            <button type="button" id="add-option" class="btn btn-sm btn-outline-secondary mt-2">
-              Добавить вариант
-            </button>
-          </div>
+          {% if test.test_type == 'scale' %}
+            <div class="alert alert-info mt-3 mb-0 small">
+              Шкаловая методика: у вопроса будут общие варианты ответа из блока «Шкала» справа.
+            </div>
           {% else %}
-          <div class="alert alert-info mt-3">
-            Это шкальная методика. Все вопросы используют общий набор ответов, заданный ниже.
-          </div>
+            <div class="mt-3">
+              <label for="question_type" class="form-label">Тип вопроса</label>
+              <select class="form-select" id="question_type" name="question_type" required>
+                <option value="">— выберите тип —</option>
+                {% for key, label in QUESTION_TYPES.items() %}
+                  <option value="{{ key }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div id="options-container" class="mt-3" style="display:none">
+              <label class="form-label">Варианты ответов</label>
+              <div class="small text-muted mb-1">Текст на русском, перевод на казахский, баллы за выбор.</div>
+              <div id="options-list"></div>
+              <button type="button" id="add-option" class="btn btn-sm btn-outline-secondary mt-1">
+                <i class="bi bi-plus"></i> Вариант
+              </button>
+            </div>
           {% endif %}
 
-          <div class="d-flex justify-content-between mt-4">
-            <a href="{{ url_for('tests') }}" class="btn btn-outline-secondary">
-              Назад к тестам
-            </a>
+          <div class="d-flex justify-content-end mt-3">
             <button type="submit" class="btn btn-primary">Добавить вопрос</button>
           </div>
         </form>
       </div>
     </div>
 
-    <!-- Интерпретации результатов -->
-    <h4 class="mt-4">Интерпретации результатов</h4>
-    <div id="interpretations-list">
-      {% for interp in test.interpretations %}
-      <div class="border p-2 mb-2">
-        <strong>{{ interp.min_score }}–{{ interp.max_score }} баллов:</strong> {{ interp.text }}
-        <form method="POST" action="{{ url_for('add_interpretation', test_id=test.id) }}" class="d-inline">
-          <input type="hidden" name="delete_interpretation" value="{{ interp.id }}">
-          <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
-        </form>
-      </div>
-      {% endfor %}
-    </div>
-
-    <form method="POST" action="{{ url_for('add_interpretation', test_id=test.id) }}" class="mt-3">
-      <div class="row g-2">
-        <div class="col">
-          <input type="number" name="min_score" class="form-control" placeholder="От" required>
-        </div>
-        <div class="col">
-          <input type="number" name="max_score" class="form-control" placeholder="До" required>
-        </div>
-      </div>
-      <textarea name="text" class="form-control mt-2" placeholder="Текст интерпретации" required></textarea>
-      <button type="submit" class="btn btn-success mt-2">Добавить интерпретацию</button>
-    </form>
-
-  </div>
-
-  <!-- ПРАВАЯ КОЛОНКА: шкальные варианты и подсказки -->
-  <div class="col-md-4">
-    {% if test.test_type == 'scale' %}
-    <div class="card mb-3">
-      <div class="card-header">
-        Шкаловые варианты ответов
-      </div>
+    <!-- Интерпретации -->
+    <div class="card mb-4" id="interpretations">
       <div class="card-body">
-        <form method="POST" action="{{ url_for('update_scale_options', test_id=test.id) }}">
-          <div id="scale-options">
-            {% for so in test.scale_options %}
-            <div class="border rounded p-2 mb-2">
-              <input type="hidden" name="delete_scale_option[]" value="">
-              <div class="mb-1">
-                <label class="form-label small">Ответ (RU)</label>
-                <input type="text" class="form-control form-control-sm" name="scale_label_ru[]" value="{{ so.label_ru }}">
-              </div>
-              <div class="mb-1">
-                <label class="form-label small">Жауап (KZ)</label>
-                <input type="text" class="form-control form-control-sm" name="scale_label_kk[]" value="{{ so.label_kk or '' }}">
-              </div>
-              <div class="mb-1">
-                <label class="form-label small">Баллы</label>
-                <input type="number" class="form-control form-control-sm" name="scale_score[]" value="{{ so.score }}">
+        <h5 class="mb-1">Интерпретации по сумме баллов</h5>
+        <p class="small text-muted">
+          Текст сохраняется в результате студента и попадает в выгрузки.
+          <i class="bi bi-bell-fill text-danger"></i> — диапазон «требует внимания»: такие результаты появляются на вашей панели.
+        </p>
+
+        {% for issue in interpretation_issues %}
+          <div class="alert alert-warning py-2 small mb-2"><i class="bi bi-exclamation-triangle"></i> {{ issue }}</div>
+        {% endfor %}
+
+        {% for interp in test.interpretations %}
+        <div class="d-flex justify-content-between align-items-start gap-2 border rounded p-2 mb-2 {% if interp.is_alert %}result-alert{% endif %}">
+          <div>
+            <strong>{{ interp.min_score }}–{{ interp.max_score }} б.:</strong>
+            <span class="text-pre">{{ interp.text }}</span>
+          </div>
+          <div class="d-flex gap-1 flex-shrink-0">
+            <form method="POST" action="{{ url_for('add_interpretation', test_id=test.id) }}">
+              {{ csrf_field() }}
+              <input type="hidden" name="toggle_alert" value="{{ interp.id }}">
+              <button type="submit" class="btn btn-sm {{ 'btn-danger' if interp.is_alert else 'btn-outline-secondary' }}"
+                      title="{{ 'Снять отметку «требует внимания»' if interp.is_alert else 'Отметить «требует внимания»' }}">
+                <i class="bi bi-bell{{ '-fill' if interp.is_alert else '' }}"></i>
+              </button>
+            </form>
+            <form method="POST" action="{{ url_for('add_interpretation', test_id=test.id) }}" data-confirm="Удалить интерпретацию?">
+              {{ csrf_field() }}
+              <input type="hidden" name="delete_interpretation" value="{{ interp.id }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+            </form>
+          </div>
+        </div>
+        {% else %}
+          <p class="text-muted small">Интерпретаций нет — студенту сохранится только итоговый балл.</p>
+        {% endfor %}
+
+        <form method="POST" action="{{ url_for('add_interpretation', test_id=test.id) }}" class="mt-3">
+          {{ csrf_field() }}
+          <div class="row g-2">
+            <div class="col-6 col-md-3">
+              <input type="number" name="min_score" class="form-control" placeholder="От" required>
+            </div>
+            <div class="col-6 col-md-3">
+              <input type="number" name="max_score" class="form-control" placeholder="До" required>
+            </div>
+            <div class="col-md-6 d-flex align-items-center">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="is_alert" value="1" id="is_alert">
+                <label class="form-check-label" for="is_alert">Требует внимания психолога</label>
               </div>
             </div>
-            {% endfor %}
-            {% if test.scale_options|length == 0 %}
-            <p class="text-muted small">Пока нет вариантов. Добавьте хотя бы 2–4 варианта ответов.</p>
-            {% endif %}
           </div>
+          <textarea name="text" class="form-control mt-2" rows="2" placeholder="Текст интерпретации" required></textarea>
+          <button type="submit" class="btn btn-success btn-sm mt-2">Добавить интерпретацию</button>
+        </form>
 
-          <button type="button" class="btn btn-sm btn-outline-secondary mb-2" id="add-scale-option">
-            Добавить шкальный вариант
-          </button>
+        {% if result_count %}
+        <hr>
+        <form method="POST" action="{{ url_for('recalculate_results', test_id=test.id) }}"
+              data-confirm="Пересчитать баллы и тексты интерпретаций у {{ result_count }} результатов по сохранённым ответам?">
+          {{ csrf_field() }}
+          <button type="submit" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-repeat"></i> Пересчитать результаты</button>
+          <span class="small text-muted ms-2">после изменения баллов шкалы или диапазонов</span>
+        </form>
+        {% endif %}
+      </div>
+    </div>
 
-          <button type="submit" class="btn btn-sm btn-primary w-100">
-            Сохранить шкалу
+    <!-- Подшкалы -->
+    <div class="card mb-4" id="subscales">
+      <div class="card-body">
+        <h5 class="mb-1">Подшкалы</h5>
+        <p class="small text-muted">
+          Для многомерных методик (например, опросник Олвеуса): сумма баллов по выбранным вопросам.
+          Профиль по подшкалам виден в результате студента и в выгрузке CSV.
+        </p>
+        {% for sub in test.subscales %}
+          <div class="d-flex justify-content-between align-items-center border rounded p-2 mb-2">
+            <div><strong>{{ sub.name }}</strong> <span class="text-muted small">— вопросы {{ sub.question_numbers }}</span></div>
+            <form method="POST" action="{{ url_for('manage_subscales', test_id=test.id) }}" data-confirm="Удалить подшкалу?">
+              {{ csrf_field() }}
+              <input type="hidden" name="delete_subscale" value="{{ sub.id }}">
+              <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+            </form>
+          </div>
+        {% endfor %}
+        <form method="POST" action="{{ url_for('manage_subscales', test_id=test.id) }}" class="row g-2 mt-1">
+          {{ csrf_field() }}
+          <div class="col-md-6"><input type="text" name="name" class="form-control" maxlength="200" placeholder="Название подшкалы" required></div>
+          <div class="col-md-4"><input type="text" name="question_numbers" class="form-control" maxlength="500" placeholder="Номера: 1, 3, 5-7" required></div>
+          <div class="col-md-2 d-grid"><button class="btn btn-outline-success">Добавить</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ПРАВАЯ КОЛОНКА -->
+  <div class="col-lg-4">
+    {% if test.test_type == 'scale' %}
+    <div class="card mb-3">
+      <div class="card-header">Шкала ответов</div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('update_scale_options', test_id=test.id) }}"
+              {% if result_count %}data-confirm="Тест уже проходили ({{ result_count }}). Новые подписи и баллы применятся к вопросам, которые следуют шкале (вопросы с собственными баллами не изменятся). Сохранённые итоговые баллы не изменятся, пока вы не нажмёте «Пересчитать результаты». Продолжить?"{% endif %}>
+          {{ csrf_field() }}
+          <div id="scale-options">
+            {% for so in test.scale_options %}
+            <div class="border rounded p-2 mb-2 scale-row">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="small text-muted">Вариант {{ loop.index }}</span>
+                <button type="button" class="btn btn-sm btn-link text-danger p-0 remove-scale" title="Убрать">&times;</button>
+              </div>
+              <input type="text" class="form-control form-control-sm mb-1" name="scale_label_ru[]" value="{{ so.label_ru }}" placeholder="Ответ (RU)">
+              <input type="text" class="form-control form-control-sm mb-1" name="scale_label_kk[]" value="{{ so.label_kk or '' }}" placeholder="Жауап (KZ)">
+              <input type="number" class="form-control form-control-sm" name="scale_score[]" value="{{ so.score }}" placeholder="Баллы">
+            </div>
+            {% endfor %}
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-secondary mb-2 w-100" id="add-scale-option">
+            <i class="bi bi-plus"></i> Добавить вариант
           </button>
+          <button type="submit" class="btn btn-sm btn-primary w-100">Сохранить шкалу</button>
         </form>
       </div>
     </div>
     {% endif %}
 
     <div class="card">
-      <div class="card-header">
-        Подсказка по переводу
-      </div>
+      <div class="card-header">Подсказки</div>
       <div class="card-body small">
-        <p class="mb-1">Слева вводите вопросы и ответы на русском, справа — перевод на казахский.</p>
-        <p class="mb-1">Если перевода нет, студент на казахском языке увидит русский текст.</p>
+        <p class="mb-2">Слева вводите текст на русском, справа — перевод на казахский. Если перевода нет, студент на казахском увидит русский текст.</p>
+        <p class="mb-2">Номера вопросов (1, 2, 3…) используются в подшкалах — удаление вопроса сдвигает номера следующих.</p>
+        <p class="mb-0">Чтобы скрыть тест от студентов без потери результатов, снимите «Тест активен» в настройках теста.</p>
       </div>
     </div>
   </div>
 </div>
 
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-  const testType = "{{ test.test_type }}";
-
-  const questionType = document.getElementById("question_type");
-  const optionsContainer = document.getElementById("options-container");
-  const optionsList = document.getElementById("options-list");
-  const addOptionBtn = document.getElementById("add-option");
-
-  const optionTemplate = `
-    <div class="option-item mb-2">
-      <div class="row g-1">
-        <div class="col-md-5">
-          <input type="text" class="form-control form-control-sm" name="option_text_ru[]" placeholder="Ответ RU">
-        </div>
-        <div class="col-md-5">
-          <input type="text" class="form-control form-control-sm" name="option_text_kk[]" placeholder="Жауап KZ">
-        </div>
-        <div class="col-md-2 d-flex">
-          <input type="number" class="form-control form-control-sm me-1" name="option_score[]" placeholder="Баллы" value="0">
-          <button type="button" class="btn btn-sm btn-outline-danger remove-option">&times;</button>
-        </div>
+<template id="option-template">
+  <div class="option-item mb-2">
+    <div class="row g-1">
+      <div class="col-md-5"><input type="text" class="form-control form-control-sm" name="option_text_ru[]" maxlength="200" placeholder="Ответ RU"></div>
+      <div class="col-md-4"><input type="text" class="form-control form-control-sm" name="option_text_kk[]" maxlength="200" placeholder="Жауап KZ"></div>
+      <div class="col-md-3 d-flex">
+        <input type="number" class="form-control form-control-sm me-1" name="option_score[]" placeholder="Баллы" value="0">
+        <button type="button" class="btn btn-sm btn-outline-danger remove-option">&times;</button>
       </div>
     </div>
-  `;
+  </div>
+</template>
 
-  function toggleOptionsContainer() {
-    if (!questionType) return;
-    if (questionType.value === "text" || questionType.value === "" || testType === 'scale') {
-      optionsContainer.style.display = "none";
-      optionsList.innerHTML = "";
-    } else {
-      optionsContainer.style.display = "block";
-      if (optionsList.children.length === 0) {
-        addOption();
-      }
-    }
-  }
+<template id="scale-template">
+  <div class="border rounded p-2 mb-2 scale-row">
+    <div class="d-flex justify-content-between align-items-center mb-1">
+      <span class="small text-muted">Новый вариант</span>
+      <button type="button" class="btn btn-sm btn-link text-danger p-0 remove-scale" title="Убрать">&times;</button>
+    </div>
+    <input type="text" class="form-control form-control-sm mb-1" name="scale_label_ru[]" placeholder="Ответ (RU), напр. Всегда">
+    <input type="text" class="form-control form-control-sm mb-1" name="scale_label_kk[]" placeholder="Жауап (KZ), мыс. Әрқашан">
+    <input type="number" class="form-control form-control-sm" name="scale_score[]" value="0" placeholder="Баллы">
+  </div>
+</template>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const questionType = document.getElementById('question_type');
+  const optionsContainer = document.getElementById('options-container');
+  const optionsList = document.getElementById('options-list');
 
   function addOption() {
-    const div = document.createElement("div");
-    div.innerHTML = optionTemplate;
-    optionsList.appendChild(div);
-
-    div.querySelector(".remove-option").addEventListener("click", function () {
-      div.remove();
-    });
+    const node = document.getElementById('option-template').content.firstElementChild.cloneNode(true);
+    node.querySelector('.remove-option').addEventListener('click', function () { node.remove(); });
+    optionsList.appendChild(node);
   }
 
   if (questionType) {
-    toggleOptionsContainer();
-    questionType.addEventListener("change", toggleOptionsContainer);
+    questionType.addEventListener('change', function () {
+      const needsOptions = questionType.value && questionType.value !== 'text';
+      optionsContainer.style.display = needsOptions ? 'block' : 'none';
+      if (!needsOptions) {
+        optionsList.innerHTML = '';
+      } else {
+        while (optionsList.children.length < 2) addOption();
+      }
+    });
+    document.getElementById('add-option').addEventListener('click', addOption);
   }
 
-  if (addOptionBtn) {
-    addOptionBtn.addEventListener("click", addOption);
-  }
-
-  // добавление шкального варианта (справа)
-  const addScaleBtn = document.getElementById('add-scale-option');
   const scaleContainer = document.getElementById('scale-options');
-  if (addScaleBtn && scaleContainer) {
-    addScaleBtn.addEventListener('click', function() {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'border rounded p-2 mb-2';
-      wrapper.innerHTML = `
-        <div class="mb-1">
-          <label class="form-label small">Ответ (RU)</label>
-          <input type="text" class="form-control form-control-sm" name="scale_label_ru[]" placeholder="Напр. Всегда">
-        </div>
-        <div class="mb-1">
-          <label class="form-label small">Жауап (KZ)</label>
-          <input type="text" class="form-control form-control-sm" name="scale_label_kk[]" placeholder="Мыс.: Әрқашан">
-        </div>
-        <div class="mb-1">
-          <label class="form-label small">Баллы</label>
-          <input type="number" class="form-control form-control-sm" name="scale_score[]" value="0">
-        </div>
-      `;
-      scaleContainer.appendChild(wrapper);
+  if (scaleContainer) {
+    scaleContainer.addEventListener('click', function (e) {
+      if (e.target.classList.contains('remove-scale')) {
+        e.target.closest('.scale-row').remove();
+      }
+    });
+    document.getElementById('add-scale-option').addEventListener('click', function () {
+      scaleContainer.appendChild(document.getElementById('scale-template').content.firstElementChild.cloneNode(true));
     });
   }
 });

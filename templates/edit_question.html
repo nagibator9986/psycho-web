@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Вопрос {{ number }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{{ url_for('tests') }}">Мои тесты</a></li>
+    <li class="breadcrumb-item"><a href="{{ url_for('add_questions', test_id=test.id) }}">{{ test.title|truncate(40) }}</a></li>
+    <li class="breadcrumb-item active">Вопрос {{ number }}</li>
+  </ol>
+</nav>
+
+<h1 class="h4 mb-3">Вопрос {{ number }} · {{ QUESTION_TYPES.get(question.question_type, question.question_type) }}</h1>
+
+<form method="POST">
+  {{ csrf_field() }}
+  <div class="row g-3 mb-3">
+    <div class="col-md-6">
+      <label class="form-label" for="text_ru">Текст (RU)</label>
+      <textarea class="form-control" id="text_ru" name="text_ru" rows="3">{{ question.text }}</textarea>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label" for="text_kk">Текст (KZ)</label>
+      <textarea class="form-control" id="text_kk" name="text_kk" rows="3">{{ question.text_kk or '' }}</textarea>
+    </div>
+  </div>
+
+  {% if test.test_type == 'scale' %}
+    <h5 class="mt-4">Баллы вариантов</h5>
+    <p class="small text-muted">
+      Подписи вариантов берутся из общей шкалы теста. Баллы можно задать свои — например, для вопроса
+      с обратным ключом (порядок баллов наоборот).
+    </p>
+    <div class="table-responsive" style="max-width: 520px;">
+      <table class="table table-sm align-middle">
+        <thead><tr><th>Вариант</th><th style="width:120px">Баллы</th></tr></thead>
+        <tbody>
+          {% for opt in question.options %}
+          <tr>
+            <td>{{ opt.text }}{% if opt.text_kk %} <span class="text-muted">/ {{ opt.text_kk }}</span>{% endif %}</td>
+            <td><input type="number" class="form-control form-control-sm" name="option_score_{{ opt.id }}" value="{{ opt.score or 0 }}"></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-secondary mb-3" id="reverse-scores">
+      <i class="bi bi-arrow-down-up"></i> Обратный ключ (развернуть баллы)
+    </button>
+  {% elif question.question_type != 'text' %}
+    <h5 class="mt-4">Варианты ответа</h5>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead><tr><th>RU</th><th>KZ</th><th style="width:110px">Баллы</th><th style="width:90px">Удалить</th></tr></thead>
+        <tbody>
+          {% for opt in question.options %}
+          <tr>
+            <td><input type="text" class="form-control form-control-sm" name="option_ru_{{ opt.id }}" value="{{ opt.text }}" maxlength="200"></td>
+            <td><input type="text" class="form-control form-control-sm" name="option_kk_{{ opt.id }}" value="{{ opt.text_kk or '' }}" maxlength="200"></td>
+            <td><input type="number" class="form-control form-control-sm" name="option_score_{{ opt.id }}" value="{{ opt.score or 0 }}"></td>
+            <td class="text-center"><input class="form-check-input" type="checkbox" name="delete_option_{{ opt.id }}" value="1"></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div id="options-list"></div>
+    <button type="button" id="add-option" class="btn btn-sm btn-outline-secondary mb-3"><i class="bi bi-plus"></i> Новый вариант</button>
+    <p class="small text-muted">Изменение баллов не пересчитывает уже сохранённые результаты — для этого есть кнопка «Пересчитать результаты».</p>
+  {% endif %}
+
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-primary">Сохранить</button>
+    <a href="{{ url_for('add_questions', test_id=test.id) }}" class="btn btn-light">Отмена</a>
+  </div>
+</form>
+
+<template id="option-template">
+  <div class="row g-1 mb-2">
+    <div class="col-md-5"><input type="text" class="form-control form-control-sm" name="option_text_ru[]" maxlength="200" placeholder="Ответ RU"></div>
+    <div class="col-md-4"><input type="text" class="form-control form-control-sm" name="option_text_kk[]" maxlength="200" placeholder="Жауап KZ"></div>
+    <div class="col-md-3"><input type="number" class="form-control form-control-sm" name="option_score[]" value="0" placeholder="Баллы"></div>
+  </div>
+</template>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const reverseBtn = document.getElementById('reverse-scores');
+if (reverseBtn) {
+  reverseBtn.addEventListener('click', function () {
+    const inputs = Array.from(document.querySelectorAll('input[name^="option_score_"]'));
+    const values = inputs.map(i => i.value).reverse();
+    inputs.forEach((i, k) => { i.value = values[k]; });
+  });
+}
+const addBtn = document.getElementById('add-option');
+if (addBtn) {
+  addBtn.addEventListener('click', function () {
+    document.getElementById('options-list').appendChild(
+      document.getElementById('option-template').content.firstElementChild.cloneNode(true)
+    );
+  });
+}
+</script>
+{% endblock %}

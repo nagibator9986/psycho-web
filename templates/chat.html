@@ -1,46 +1,103 @@
-{% extends "base.html" %}
-{% block content %}
-<div class="container mt-5">
-    <h2>Чат с {{ contact.full_name or contact.username }}</h2>
-    
-    <!-- История сообщений -->
-    <div class="card mb-4" style="max-height: 400px; overflow-y: auto;">
-        <div class="card-body">
-            {% for message in messages %}
-            <div class="mb-2">
-                <strong>{{ message.sender.full_name or message.sender.username }}</strong>
-                {% if message.is_anonymous %}(Анонимно){% endif %}:
-                {{ message.content }}<br>
-                <small>{{ message.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+{% extends "messages.html" %}
+{% from '_macros.html' import avatar %}
+
+{% block title %}{{ chat_title }}{% endblock %}
+
+{% block chat %}
+{% set me = get_current_user() %}
+<div class="card chat-window">
+    <div class="card-header d-flex align-items-center gap-2">
+        {{ avatar(avatar_user, 36) }}
+        <div class="flex-grow-1">
+            <div class="fw-semibold">
+                {% if anonymous %}<i class="bi bi-incognito text-muted"></i>{% endif %} {{ chat_title }}
             </div>
-            {% endfor %}
+            {% if not anonymous and partner.role == 'student' %}
+                <a href="{{ url_for('student_analytics', student_id=partner.id) }}" class="small">Карточка студента</a>
+            {% endif %}
         </div>
     </div>
-    
-    <!-- Форма отправки сообщения -->
-    <form method="POST" class="mb-4">
-        <div class="mb-3">
-            <textarea class="form-control" name="content" rows="4" placeholder="Введите сообщение..." required></textarea>
+    <div class="card-body d-flex flex-column gap-3">
+        {% if anonymous %}
+            <div class="anon-note">
+                {% if is_student() %}
+                    <i class="bi bi-incognito"></i> Анонимный чат: психолог видит только псевдоним, без вашего имени, группы и ИИН.
+                    Если захотите встретиться лично — напишите в обычном чате.
+                {% else %}
+                    <i class="bi bi-incognito"></i> Анонимный собеседник: студент решил не раскрывать имя.
+                    Если ситуация опасна, предложите контакты экстренной помощи (150, 111, 112).
+                {% endif %}
+            </div>
+        {% endif %}
+
+        <div class="chat-scroll" id="chatScroll">
+            {% for message in messages %}
+                {% set mine = message.sender_id == me.id %}
+                <div class="chat-bubble {{ 'mine' if mine }}">
+                    <div class="text-pre">{{ message.content }}</div>
+                    <div class="chat-meta">
+                        {{ 'Вы' if mine else chat_title }} · {{ message.created_at|ts }}
+                        {% if mine and message.is_read %}· <i class="bi bi-check2-all" title="Прочитано"></i>{% endif %}
+                    </div>
+                </div>
+            {% else %}
+                <div class="text-center text-muted small py-4">Сообщений пока нет — напишите первым.</div>
+            {% endfor %}
+            <div id="bottom"></div>
         </div>
-        <div class="mb-3 form-check">
-            <input type="checkbox" class="form-check-input" id="is_anonymous" name="is_anonymous">
-            <label class="form-check-label" for="is_anonymous">Отправить анонимно</label>
-        </div>
-        <button type="submit" class="btn btn-primary">Отправить</button>
-    </form>
-    
-    <!-- Форма назначения встречи -->
-    <h3>Назначить встречу</h3>
-    <form method="POST">
-        <div class="mb-3">
-            <label for="appointment_date" class="form-label">Дата и время:</label>
-            <input type="datetime-local" class="form-control" id="appointment_date" name="appointment_date" required>
-        </div>
-        <div class="mb-3">
-            <label for="purpose" class="form-label">Цель встречи:</label>
-            <textarea class="form-control" id="purpose" name="purpose" rows="3"></textarea>
-        </div>
-        <button type="submit" class="btn btn-success">Назначить встречу</button>
-    </form>
+
+        <form method="POST" action="{{ post_url }}">
+            {{ csrf_field() }}
+            <div class="input-group">
+                <textarea class="form-control" name="content" rows="2" maxlength="5000"
+                          placeholder="Введите сообщение... (Ctrl+Enter — отправить)" required id="messageInput"></textarea>
+                <button type="submit" class="btn btn-primary"><i class="bi bi-send"></i></button>
+            </div>
+        </form>
+
+        {% if not anonymous %}
+        <details>
+            <summary class="small">
+                <i class="bi bi-calendar-plus"></i>
+                {{ 'Назначить встречу' if is_psychologist() else 'Записаться на встречу' }}
+            </summary>
+            <form method="POST" action="{{ post_url }}" class="row g-2 mt-1">
+                {{ csrf_field() }}
+                <div class="col-md-5">
+                    <input type="datetime-local" class="form-control form-control-sm" name="appointment_date"
+                           min="{{ now_local().strftime('%Y-%m-%dT%H:%M') }}" required>
+                </div>
+                <div class="col-md-5">
+                    <input type="text" class="form-control form-control-sm" name="purpose" maxlength="1000" placeholder="Цель встречи">
+                </div>
+                <div class="col-md-2 d-grid">
+                    <button type="submit" class="btn btn-sm btn-success">{{ 'Назначить' if is_psychologist() else 'Отправить' }}</button>
+                </div>
+                <div class="col-12 small text-muted">
+                    {% if is_psychologist() %}Встреча сразу будет подтверждена, студент получит уведомление.
+                    {% else %}Психолог получит заявку и подтвердит время.{% endif %}
+                </div>
+            </form>
+        </details>
+        {% endif %}
+    </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const box = document.getElementById('chatScroll');
+  if (box) box.scrollTop = box.scrollHeight;
+  const input = document.getElementById('messageInput');
+  if (input) {
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        if (input.value.trim()) input.form.submit();
+      }
+    });
+  }
+})();
+</script>
 {% endblock %}

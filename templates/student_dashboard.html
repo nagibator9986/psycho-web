@@ -1,39 +1,86 @@
 {% extends "base.html" %}
+{% from '_macros.html' import avatar, status_badge, empty %}
+
+{% block title %}Личный кабинет{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-4">
+<div class="row g-4">
+    <div class="col-lg-4">
         <div class="card mb-4">
             <div class="card-body text-center">
-                {% if user.profile_pic %}
-                    <img src="{{ url_for('static', filename='uploads/' + user.profile_pic) }}" class="rounded-circle mb-3" width="150" height="150">
-                {% else %}
-                    <div class="rounded-circle bg-secondary mb-3 mx-auto" style="width: 150px; height: 150px;"></div>
-                {% endif %}
-                <h4>{{ user.full_name if user.full_name else user.username }}</h4>
-                <p class="text-muted">Студент</p>
+                <div class="mb-3">{{ avatar(user, 110) }}</div>
+                <h4 class="mb-1">{{ user.display_name }}</h4>
+                <p class="text-muted mb-3">
+                    Студент{% if user.group %} · {{ user.group.name }}{% endif %}
+                </p>
                 <a href="{{ url_for('edit_profile') }}" class="btn btn-outline-primary btn-sm">Редактировать профиль</a>
             </div>
         </div>
 
         <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0">Быстрые действия</h5>
-            </div>
-            <div class="card-body">
-                <a href="{{ url_for('tests') }}" class="btn btn-primary w-100 mb-2">Пройти тест</a>
-                <a href="{{ url_for('create_post') }}" class="btn btn-outline-primary w-100 mb-2">Написать пост</a>
-                <a href="{{ url_for('messages') }}" class="btn btn-outline-primary w-100">
+            <div class="card-header"><h5 class="mb-0">Быстрые действия</h5></div>
+            <div class="card-body d-grid gap-2">
+                <a href="{{ url_for('tests') }}" class="btn btn-primary">Пройти тест</a>
+                <a href="{{ url_for('messages') }}" class="btn btn-outline-primary">
                     Сообщения
-                    {% if unread_messages > 0 %}
-                        <span class="badge bg-danger ms-2">{{ unread_messages }}</span>
-                    {% endif %}
+                    {% if unread_messages > 0 %}<span class="badge bg-danger ms-2">{{ unread_messages }}</span>{% endif %}
                 </a>
+                <a href="{{ url_for('create_post') }}" class="btn btn-outline-primary">Написать на форум</a>
+                <a href="{{ url_for('emergency') }}" class="btn btn-outline-danger">Нужна помощь сейчас</a>
             </div>
         </div>
+
+        {% if psychologists %}
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">Психологи</h5></div>
+            <ul class="list-group list-group-flush">
+                {% for p in psychologists %}
+                <li class="list-group-item">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        {{ avatar(p, 36) }}
+                        <a href="{{ url_for('profile', username=p.username) }}" class="fw-semibold text-decoration-none">{{ p.display_name }}</a>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <a href="{{ url_for('chat', contact_id=p.id) }}" class="btn btn-sm btn-primary">Написать</a>
+                        <a href="{{ url_for('anon_chat', psychologist_id=p.id) }}" class="btn btn-sm btn-outline-secondary"
+                           title="Психолог не увидит ваше имя">
+                            <i class="bi bi-incognito"></i> Анонимно
+                        </a>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
     </div>
 
-    <div class="col-md-8">
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Мои встречи</h5>
+                <a href="{{ url_for('appointments') }}" class="btn btn-sm btn-outline-primary">Все встречи</a>
+            </div>
+            <div class="card-body">
+                {% if upcoming_appointments %}
+                    <div class="list-group">
+                        {% for a in upcoming_appointments %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div>
+                                <div class="fw-semibold">{{ a.appointment_date|when }} · {{ a.psychologist.display_name }}</div>
+                                <small class="text-muted">{{ a.purpose or 'Цель не указана' }}</small>
+                            </div>
+                            {{ status_badge(a.status) }}
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted mb-0">
+                        Запланированных встреч нет. Записаться можно в переписке с психологом.
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Доступные тесты</h5>
@@ -43,23 +90,40 @@
                 {% if available_tests %}
                     <div class="list-group">
                         {% for test in available_tests %}
-                        <div class="list-group-item">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">{{ test.title }}</h6>
-                                    <small class="text-muted">От {{ test.creator.username }}</small>
-                                </div>
-                                <a href="{{ url_for('take_test', test_id=test.id) }}" class="btn btn-sm btn-primary">Пройти</a>
+                        <div class="list-group-item d-flex justify-content-between align-items-center gap-2">
+                            <div>
+                                <h6 class="mb-1">{{ test.title }}</h6>
+                                <small class="text-muted">{{ test.questions|length }} вопросов</small>
                             </div>
+                            <a href="{{ url_for('take_test', test_id=test.id) }}" class="btn btn-sm btn-primary">Пройти</a>
                         </div>
                         {% endfor %}
                     </div>
                 {% else %}
-                    <p class="text-muted">Нет доступных тестов.</p>
+                    {{ empty('Новых тестов нет — вы прошли всё доступное', 'check2-circle') }}
                 {% endif %}
             </div>
         </div>
 
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">Пройденные тесты</h5></div>
+            <div class="card-body">
+                {% if recent_results %}
+                    <ul class="list-group">
+                        {% for r in recent_results %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>{{ r.test.title }}</span>
+                            <small class="text-muted">{{ r.created_at|ts('%d.%m.%Y') }}</small>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    <p class="small text-muted mt-2 mb-0">
+                        Результаты видит психолог — при необходимости он свяжется с вами.
+                    </p>
+                {% else %}
+                    <p class="text-muted mb-0">Вы ещё не проходили тесты.</p>
+                {% endif %}
+            </div>
         </div>
     </div>
 </div>

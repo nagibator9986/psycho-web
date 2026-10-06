@@ -1,108 +1,148 @@
 {% extends "base.html" %}
+{% from '_macros.html' import avatar, status_badge, empty %}
+
+{% block title %}Панель психолога{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-4">
-        <div class="card mb-4">
-            <div class="card-body text-center">
-                {% if user.profile_pic %}
-                    <img src="{{ url_for('static', filename='uploads/' + user.profile_pic) }}" class="rounded-circle mb-3" width="150" height="150">
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <div class="d-flex align-items-center gap-3">
+        {{ avatar(user, 56) }}
+        <div>
+            <h1 class="h3 mb-0">{{ user.display_name }}</h1>
+            <span class="text-muted">Психолог</span>
+        </div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('create_test') }}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Тест</a>
+        <a href="{{ url_for('create_article') }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-plus-lg"></i> Статья</a>
+        <a href="{{ url_for('edit_profile') }}" class="btn btn-light btn-sm">Профиль</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <a href="{{ url_for('student_list') }}" class="text-decoration-none text-reset">
+            <div class="stat-tile"><div class="stat-value">{{ students_count }}</div><div class="stat-label">студентов</div></div>
+        </a>
+    </div>
+    <div class="col-6 col-md-3">
+        <a href="{{ url_for('messages') }}" class="text-decoration-none text-reset">
+            <div class="stat-tile"><div class="stat-value {% if unread_messages %}text-danger{% endif %}">{{ unread_messages }}</div><div class="stat-label">непрочитанных сообщений</div></div>
+        </a>
+    </div>
+    <div class="col-6 col-md-3">
+        <a href="{{ url_for('appointments') }}" class="text-decoration-none text-reset">
+            <div class="stat-tile"><div class="stat-value {% if pending_requests %}text-warning{% endif %}">{{ pending_requests|length }}</div><div class="stat-label">заявок на встречу</div></div>
+        </a>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-tile"><div class="stat-value {% if alert_count %}text-danger{% endif %}">{{ alert_count }}</div><div class="stat-label">результатов требуют внимания</div></div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card mb-4 {% if alert_results %}result-alert{% endif %}">
+            <div class="card-header"><h5 class="mb-0"><i class="bi bi-exclamation-octagon text-danger"></i> Требуют внимания
+                {% if alert_count > alert_results|length %}<small class="text-muted fw-normal">· последние {{ alert_results|length }} из {{ alert_count }}</small>{% endif %}</h5></div>
+            <div class="card-body">
+                {% if alert_results %}
+                    <div class="list-group">
+                        {% for r in alert_results %}
+                        <a href="{{ url_for('test_result', result_id=r.id) }}" class="list-group-item list-group-item-action">
+                            <div class="d-flex justify-content-between">
+                                <strong>{{ r.user.display_name }}{% if r.user.group %} · {{ r.user.group.name }}{% endif %}</strong>
+                                <small class="text-muted">{{ r.created_at|ts('%d.%m.%Y') }}</small>
+                            </div>
+                            <small>{{ r.test.title|truncate(60) }} — {{ r.score }} б.: {{ r.result_text|truncate(80) }}</small>
+                        </a>
+                        {% endfor %}
+                    </div>
+                {% elif has_alert_ranges %}
+                    {{ empty('Тревожных результатов нет', 'shield-check') }}
                 {% else %}
-                    <div class="rounded-circle bg-secondary mb-3 mx-auto" style="width: 150px; height: 150px;"></div>
+                    <p class="text-muted mb-0 small">
+                        Отметьте в тестах диапазоны баллов, которые требуют внимания
+                        (кнопка <i class="bi bi-bell"></i> у интерпретации), — такие результаты будут собираться здесь.
+                    </p>
                 {% endif %}
-                <h4>{{ user.full_name if user.full_name else user.username }}</h4>
-                <p class="text-muted">Психолог</p>
-                <p>{{ user.bio if user.bio else "Добавьте информацию о себе в профиле" }}</p>
-                <a href="{{ url_for('edit_profile') }}" class="btn btn-outline-primary btn-sm">Редактировать профиль</a>
             </div>
         </div>
-        <div class="row mb-4">
-            <div class="col-md-4">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <h5 class="card-title">Количество студентов</h5>
-                        <p class="card-text">{{ students_count }}</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <h5 class="card-title">Непрочитанные сообщения</h5>
-                        <p class="card-text">{{ unread_messages }}</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <h5 class="card-title">Ожидающие назначения</h5>
-                        <p class="card-text">{{ pending_appointments }}</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Ближайшие встречи -->
-        <h3>Ближайшие встречи</h3>
-        <div class="row">
-            {% for meeting in upcoming_meetings %}
-            <div class="col-md-4 mb-3">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">Встреча с {{ meeting.student.full_name or meeting.student.username }}</h5>
-                        <p class="card-text">
-                            Дата: {{ meeting.scheduled_at.strftime('%d.%m.%Y %H:%M') }}<br>
-                            Статус: {{ meeting.status }}
-                        </p>
-                        <a href="{{ url_for('create_protocol', meeting_id=meeting.id) }}" class="btn btn-sm btn-primary">Создать протокол</a>
-                    </div>
-                </div>
-            </div>
-            {% else %}
-            <p>Нет предстоящих встреч.</p>
-            {% endfor %}
-        </div>
-        
-        <!-- История встреч -->
-        <h3>История встреч</h3>
-        <div class="row">
-            {% for meeting in past_meetings %}
-            <div class="col-md-4 mb-3">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">Встреча с {{ meeting.student.full_name or meeting.student.username }}</h5>
-                        <p class="card-text">
-                            Дата: {{ meeting.scheduled_at.strftime('%d.%m.%Y %H:%M') }}<br>
-                            Статус: {{ meeting.status }}
-                        </p>
-                    </div>
-                </div>
-            </div>
-            {% else %}
-            <p>Нет завершенных встреч.</p>
-            {% endfor %}
-        </div>
+
         <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0">Быстрые действия</h5>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Заявки на встречу</h5>
+                <a href="{{ url_for('appointments') }}" class="btn btn-sm btn-outline-primary">Все встречи</a>
             </div>
             <div class="card-body">
-                <a href="{{ url_for('create_test') }}" class="btn btn-primary w-100 mb-2">Создать тест</a>
-                <a href="{{ url_for('create_post') }}" class="btn btn-outline-primary w-100 mb-2">Написать пост</a>
-                <a href="{{ url_for('create_article') }}" class="btn btn-outline-primary w-100 mb-2">Добавить статью</a>
-                <a href="{{ url_for('student_list') }}" class="btn btn-outline-primary w-100 mb-2"">Список студентов</a>
-                <a href="{{ url_for('messages') }}" class="btn btn-outline-primary w-100">
-                    Сообщения
-                    {% if unread_messages > 0 %}
-                        <span class="badge bg-danger ms-2">{{ unread_messages }}</span>
-                    {% endif %}
-                </a>
+                {% if pending_requests %}
+                    {% for a in pending_requests %}
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 {% if not loop.last %}border-bottom pb-2 mb-2{% endif %}">
+                        <div>
+                            <div class="fw-semibold">{{ a.student.display_name }} · {{ a.appointment_date|when }}</div>
+                            <small class="text-muted">{{ a.purpose or 'Цель не указана' }}</small>
+                        </div>
+                        <div class="d-flex gap-1">
+                            <form method="post" action="{{ url_for('update_appointment', appointment_id=a.id) }}">
+                                {{ csrf_field() }}<input type="hidden" name="action" value="confirm">
+                                <input type="hidden" name="next" value="{{ url_for('dashboard') }}">
+                                <button class="btn btn-sm btn-success">Подтвердить</button>
+                            </form>
+                            <form method="post" action="{{ url_for('update_appointment', appointment_id=a.id) }}" data-confirm="Отклонить заявку?">
+                                {{ csrf_field() }}<input type="hidden" name="action" value="cancel">
+                                <input type="hidden" name="next" value="{{ url_for('dashboard') }}">
+                                <button class="btn btn-sm btn-outline-secondary">Отклонить</button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted mb-0">Новых заявок нет.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><h5 class="mb-0">Ближайшие встречи</h5></div>
+            <div class="card-body">
+                {% if upcoming %}
+                    <ul class="list-group">
+                        {% for a in upcoming %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><b>{{ a.appointment_date|when }}</b> · {{ a.student.display_name }}</span>
+                            {{ status_badge(a.status) }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted mb-0">Нет подтверждённых встреч.</p>
+                {% endif %}
             </div>
         </div>
     </div>
 
-    <div class="col-md-8">
+    <div class="col-lg-6">
+        <div class="card mb-4">
+            <div class="card-header"><h5 class="mb-0">Последние результаты тестов</h5></div>
+            <div class="card-body">
+                {% if recent_results %}
+                    <div class="list-group">
+                        {% for r in recent_results %}
+                        <a href="{{ url_for('test_result', result_id=r.id) }}" class="list-group-item list-group-item-action">
+                            <div class="d-flex justify-content-between">
+                                <span class="fw-semibold">{{ r.user.display_name }}</span>
+                                <small class="text-muted">{{ r.created_at|ts }}</small>
+                            </div>
+                            <small class="text-muted">{{ r.test.title|truncate(60) }} · {{ r.score }} б.</small>
+                        </a>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    {{ empty('Пока никто не прошёл ваши тесты', 'clipboard') }}
+                {% endif %}
+            </div>
+        </div>
+
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Мои тесты</h5>
@@ -112,53 +152,27 @@
                 {% if tests %}
                     <div class="list-group">
                         {% for test in tests %}
-                        <div class="list-group-item">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">{{ test.title }}</h6>
-                                    <small class="text-muted">Создан {{ test.created_at.strftime('%d.%m.%Y') }}</small>
-                                </div>
-                                <div>
-                                    <a href="{{ url_for('add_questions', test_id=test.id) }}" class="btn btn-sm btn-outline-secondary me-1">Добавить вопросы</a>
-                                    <a href="{{ url_for('edit_test', test_id=test.id) }}" class="btn btn-sm btn-outline-primary">Редактировать</a>
-                                </div>
+                        <div class="list-group-item d-flex justify-content-between align-items-center gap-2">
+                            <div>
+                                <h6 class="mb-1">{{ test.title|truncate(70) }}</h6>
+                                <small class="text-muted">
+                                    {{ test.questions|length }} вопросов ·
+                                    {% if test.is_active %}<span class="text-success">активен</span>{% else %}неактивен{% endif %}
+                                </small>
+                            </div>
+                            <div class="d-flex gap-1">
+                                <a href="{{ url_for('test_results', test_id=test.id) }}" class="btn btn-sm btn-outline-success">Результаты</a>
+                                <a href="{{ url_for('add_questions', test_id=test.id) }}" class="btn btn-sm btn-outline-secondary">Вопросы</a>
                             </div>
                         </div>
                         {% endfor %}
                     </div>
                 {% else %}
-                    <p class="text-muted">Вы еще не создали ни одного теста.</p>
+                    <p class="text-muted">Вы ещё не создали ни одного теста.</p>
                     <a href="{{ url_for('create_test') }}" class="btn btn-primary">Создать первый тест</a>
-                {% endif %}
-            </div>
-        </div>
-
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Мои посты</h5>
-                <a href="{{ url_for('posts') }}" class="btn btn-sm btn-outline-primary">Все посты</a>
-            </div>
-            <div class="card-body">
-                {% if posts %}
-                    <div class="list-group">
-                        {% for post in posts %}
-                        <a href="{{ url_for('view_post', post_id=post.id) }}" class="list-group-item list-group-item-action">
-                            <div class="d-flex justify-content-between">
-                                <h6 class="mb-1">{{ post.title }}</h6>
-                                <small class="text-muted">{{ post.created_at.strftime('%d.%m.%Y') }}</small>
-                            </div>
-                            <p class="mb-1 text-muted">{{ post.content|truncate(100) }}</p>
-                            <small>{{ post.comments|length }} комментариев</small>
-                        </a>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <p class="text-muted">Вы еще не написали ни одного поста.</p>
-                    <a href="{{ url_for('create_post') }}" class="btn btn-primary">Написать первый пост</a>
                 {% endif %}
             </div>
         </div>
     </div>
 </div>
-
 {% endblock %}

@@ -1,138 +1,169 @@
 {% extends "base.html" %}
+{% from '_macros.html' import avatar, status_badge, empty %}
+
+{% block title %}{{ student.display_name }}{% endblock %}
 
 {% block content %}
-<div class="container mt-5">
-    <h1 class="mb-4">Аналитика студента: {{ student.username }}</h1>
-    
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{{ url_for('student_list') }}">Студенты</a></li>
+    <li class="breadcrumb-item active">{{ student.display_name }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+  <div class="d-flex align-items-center gap-3">
+    {{ avatar(student, 72) }}
+    <div>
+      <h1 class="h3 mb-1">{{ student.full_name or 'ФИО не указано' }}</h1>
+      <div class="text-muted small">
+        ИИН {{ student.username }} · {{ student.email }}
+        {% if student.group %} · {{ student.group.name }} ({{ student.group.course }} курс){% endif %}
+        · зарегистрирован {{ student.created_at|ts('%d.%m.%Y') }}
+      </div>
+    </div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{{ url_for('chat', contact_id=student.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-chat"></i> Написать</a>
+    <a href="{{ url_for('create_appointment', student_id=student.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-calendar-plus"></i> Встреча</a>
+    <a href="{{ url_for('create_report', student_id=student.id) }}" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-plus"></i> Отчёт</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value">{{ test_results|length }}</div><div class="stat-label">пройдено тестов</div></div></div>
+  <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value {{ 'text-danger' if alerts }}">{{ alerts|length }}</div><div class="stat-label">требуют внимания</div></div></div>
+  <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value">{{ messages_sent }}</div><div class="stat-label">сообщений (не анонимных)</div></div></div>
+  <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value">{{ posts_count }}</div><div class="stat-label">постов на форуме</div></div></div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header">Результаты тестов</div>
+  <div class="card-body">
+    {% if test_results %}
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>Дата</th><th>Тест</th><th class="text-end">Балл</th><th>Интерпретация</th><th></th></tr></thead>
+          <tbody>
+            {% for r in test_results %}
+            <tr class="{{ 'table-danger' if r.id in alerts }}">
+              <td class="text-nowrap">{{ r.created_at|ts('%d.%m.%Y') }}</td>
+              <td>{{ r.test.title|truncate(50) }}</td>
+              <td class="text-end fw-semibold">{{ r.score }}</td>
+              <td class="small">{{ (r.result_text or '')|truncate(80) }}</td>
+              <td>
+                {% if r.test_id in own_test_ids %}
+                  <a href="{{ url_for('test_result', result_id=r.id) }}" class="btn btn-sm btn-outline-primary">Ответы</a>
+                {% endif %}
+              </td>
+            </tr>
             {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      {{ empty('Студент ещё не проходил тесты', 'clipboard') }}
+    {% endif %}
+  </div>
+</div>
+
+{% if series %}
+<div class="card mb-4">
+  <div class="card-header">Динамика по тестам</div>
+  <div class="card-body">
+    <canvas id="scoresChart" height="110"></canvas>
+    <p class="small text-muted mt-2 mb-0">У каждой методики своя шкала, поэтому баллы показаны отдельными линиями.</p>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-4">
+  <div class="col-lg-6">
+    <div class="card mb-4">
+      <div class="card-header">Встречи со мной</div>
+      <div class="card-body">
+        {% if appointments %}
+          <ul class="list-group">
+            {% for a in appointments %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <span>{{ a.appointment_date|when }}<br><small class="text-muted">{{ a.purpose or 'Цель не указана' }}</small></span>
+              {{ status_badge(a.status) }}
+            </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-muted mb-0">Встреч не было.</p>
         {% endif %}
-    {% endwith %}
-
-    <div class="card mb-4">
-        <div class="card-header">Основная информация</div>
-        <div class="card-body">
-            <p><strong>Полное имя:</strong> {{ student.full_name or 'Не указано' }}</p>
-            <p><strong>Email:</strong> {{ student.email }}</p>
-            <p><strong>Дата регистрации:</strong> {{ student.created_at.strftime('%d.%m.%Y %H:%M') if student.created_at else 'Не указано' }}</p>
-            {% if student.profile_pic %}
-                <img src="{{ url_for('static', filename='uploads/' + student.profile_pic) }}" 
-                     alt="Фото профиля" class="img-thumbnail" style="max-width: 150px;">
-            {% endif %}
-        </div>
+      </div>
     </div>
-
+  </div>
+  <div class="col-lg-6">
     <div class="card mb-4">
-        <div class="card-header">Статистика активности</div>
-        <div class="card-body">
-            <p><strong>Количество пройденных тестов:</strong> {{ total_tests }}</p>
-            <p><strong>Средний балл:</strong> {{ "%.1f"|format(avg_score) if avg_score is not none else 'Нет данных' }}</p>
-            <p><strong>Отправлено сообщений:</strong> {{ messages_sent }}</p>
-            <p><strong>Создано постов:</strong> {{ posts_count }}</p>
-            {% if last_test %}
-                <p><strong>Последний тест:</strong> {{ last_test.test.title }} 
-                   ({{ last_test.created_at.strftime('%d.%m.%Y') if last_test.created_at else 'Дата неизвестна' }}, балл: {{ last_test.score }})</p>
-            {% else %}
-                <p><strong>Последний тест:</strong> Не проходил тесты</p>
-            {% endif %}
-        </div>
-    </div>
-
-    <div class="card mb-4">
-        <div class="card-header">Динамика результатов</div>
-        <div class="card-body">
-            <canvas id="scoresChart" height="100"></canvas>
-        </div>
-    </div>
-
-    <div class="card mb-4">
-        <div class="card-header">Отчеты</div>
-        <div class="card-body">
-            {% if reports %}
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>Дата создания</th>
-                            <th>Действия</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for report in reports %}
-                        <tr>
-                            <td>{{ report.created_at.strftime('%d.%m.%Y %H:%M') if report.created_at else 'Дата неизвестна' }}</td>
-                            <td>
-                                <a href="{{ url_for('download_report', student_id=student.id, report_id=report.id) }}" 
-                                   class="btn btn-sm btn-primary">Скачать PDF</a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            {% else %}
-                <p>Отчеты отсутствуют. <a href="{{ url_for('create_report', student_id=student.id) }}" class="btn btn-success btn-sm">Создать отчет</a></p>
-            {% endif %}
-        </div>
-    </div>
-    <h3>Протоколы встреч</h3>
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Дата</th>
-                <th>Темы</th>
-                <th>Психолог</th>
-                <th>Действия</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for protocol in protocols %}
-            <tr>
-                <td>{{ protocol.session_date.strftime('%d.%m.%Y %H:%M') }}</td>
-                <td>{{ protocol.topics_discussed|truncate(50) }}</td>
-                <td>{{ protocol.psychologist.full_name or protocol.psychologist.username }}</td>
-                <td>
-                    <a href="{{ url_for('download_protocol', protocol_id=protocol.id) }}" class="btn btn-sm btn-success">Скачать PDF</a>
-                </td>
-            </tr>
+      <div class="card-header">Мои отчёты</div>
+      <div class="card-body">
+        {% if reports %}
+          <ul class="list-group">
+            {% for report in reports %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <span>{{ report.created_at|ts }}</span>
+              <a href="{{ url_for('download_report', student_id=student.id, report_id=report.id) }}" class="btn btn-sm btn-outline-primary">PDF</a>
+            </li>
             {% endfor %}
-        </tbody>
-    </table>
-</div>
-    <a href="{{ url_for('student_list') }}" class="btn btn-secondary">Вернуться к списку</a>
-</div>
+          </ul>
+        {% else %}
+          <p class="text-muted mb-0">Отчётов нет. <a href="{{ url_for('create_report', student_id=student.id) }}">Создать отчёт</a></p>
+        {% endif %}
+      </div>
+    </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <div class="card mb-4">
+      <div class="card-header">Протоколы встреч</div>
+      <div class="card-body">
+        {% if protocols %}
+          <ul class="list-group">
+            {% for protocol in protocols %}
+            <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
+              <span>{{ protocol.session_date|when }}<br><small class="text-muted">{{ (protocol.topics_discussed or '—')|truncate(60) }}</small></span>
+              <a href="{{ url_for('download_protocol', protocol_id=protocol.id) }}" class="btn btn-sm btn-outline-primary">PDF</a>
+            </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-muted mb-0">Протоколов нет.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if series %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-    const ctx = document.getElementById('scoresChart').getContext('2d');
-    const scoresData = {
-        labels: [{% for date, score in scores_over_time %}'{{ date.strftime("%d.%m.%Y") if date else "Неизвестно" }}',{% endfor %}],
-        datasets: [{
-            label: 'Баллы по тестам',
-            data: [{% for date, score in scores_over_time %}{{ score if score is not none else 0 }},{% endfor %}],
-            borderColor: 'rgba(75, 192, 192, 1)',
-            backgroundColor: 'rgba(75, 192, 192, 0.2)',
-            fill: true,
-            tension: 0.4
-        }]
-    };
-    const config = {
-        type: 'line',
-        data: scoresData,
-        options: {
-            responsive: true,
-            scales: {
-                x: { title: { display: true, text: 'Дата' } },
-                y: { title: { display: true, text: 'Балл' }, beginAtZero: true }
-            },
-            plugins: { legend: { display: true, position: 'top' } }
-        }
-    };
-    new Chart(ctx, config);
+(function () {
+  const series = {{ series|tojson }};
+  const palette = ['#4f46e5', '#f97316', '#22c55e', '#0ea5e9', '#ef4444', '#a855f7', '#eab308'];
+  const labels = Array.from(new Set(Object.values(series).flat().map(p => p.x))).sort();
+  const datasets = Object.entries(series).map(([title, points], i) => ({
+    label: title.length > 40 ? title.slice(0, 40) + '…' : title,
+    data: points,
+    borderColor: palette[i % palette.length],
+    backgroundColor: palette[i % palette.length],
+    tension: 0.3,
+    spanGaps: true,
+  }));
+  new Chart(document.getElementById('scoresChart'), {
+    type: 'line',
+    data: {labels: labels, datasets: datasets},
+    options: {
+      responsive: true,
+      parsing: {xAxisKey: 'x', yAxisKey: 'y'},
+      scales: {y: {beginAtZero: true, title: {display: true, text: 'Балл'}}},
+      plugins: {legend: {position: 'bottom'}},
+    },
+  });
+})();
 </script>
+{% endif %}
 {% endblock %}

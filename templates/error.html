@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Ошибка {{ code }}{% endblock %}
+
+{% block content %}
+<div class="text-center py-5">
+    <div class="display-4 fw-bold text-primary mb-2">{{ code }}</div>
+    <p class="lead mb-4">{{ message }}</p>
+    <div class="d-flex justify-content-center gap-2 flex-wrap">
+        <a href="{{ url_for('index') }}" class="btn btn-primary">На главную</a>
+        <a href="javascript:history.back()" class="btn btn-light">Назад</a>
+    </div>
+    <p class="text-muted small mt-4 mb-0">
+        Если вам нужна срочная помощь — <a href="{{ url_for('emergency') }}">экстренные контакты</a>.
+    </p>
+</div>
+{% endblock %}

@@ -1,40 +1,51 @@
 {% extends "base.html" %}
+{% from '_macros.html' import avatar %}
+
+{% block title %}{{ user.display_name }}{% endblock %}
 
 {% block content %}
-<div class="row">
+<div class="row g-4">
     <div class="col-md-4">
         <div class="card mb-4">
             <div class="card-body text-center">
-                {% if user.profile_pic %}
-                    <img src="{{ url_for('static', filename='uploads/' + user.profile_pic) }}" class="rounded-circle mb-3" width="150" height="150">
-                {% else %}
-                    <div class="rounded-circle bg-secondary mb-3 mx-auto" style="width: 150px; height: 150px;"></div>
-                {% endif %}
-                <h4>{{ user.full_name if user.full_name else user.username }}</h4>
-                <p class="text-muted">{{ 'Психолог' if user.role == 'psychologist' else 'Студент' }}</p>
-                
+                <div class="mb-3">{{ avatar(user, 120) }}</div>
+                <h4>{{ user.display_name }}</h4>
+                <p class="text-muted">
+                    {{ ROLE_NAMES.get(user.role, user.role) }}
+                    {% if user.group and (can_edit or get_current_user().is_staff) %} · {{ user.group.name }}{% endif %}
+                </p>
+
                 {% if user.bio %}
-                    <p>{{ user.bio }}</p>
+                    <p class="text-pre text-start">{{ user.bio }}</p>
                 {% endif %}
-                
+
                 {% if can_edit %}
-                    <a href="{{ url_for('edit_profile') }}" class="btn btn-outline-primary btn-sm">Редактировать профиль</a>
-                {% elif user.role == 'psychologist' %}
-                    <a href="{{ url_for('chat', contact_id=user.id) }}" class="btn btn-primary">Написать сообщение</a>
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('edit_profile') }}" class="btn btn-outline-primary btn-sm">Редактировать профиль</a>
+                        <a href="{{ url_for('change_password') }}" class="btn btn-light btn-sm">Сменить пароль</a>
+                    </div>
+                {% elif user.role == 'psychologist' and is_student() %}
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('chat', contact_id=user.id) }}" class="btn btn-primary">Написать сообщение</a>
+                        <a href="{{ url_for('anon_chat', psychologist_id=user.id) }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-incognito"></i> Написать анонимно
+                        </a>
+                    </div>
+                {% elif user.role == 'student' and is_psychologist() %}
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('student_analytics', student_id=user.id) }}" class="btn btn-primary">Карточка студента</a>
+                        <a href="{{ url_for('chat', contact_id=user.id) }}" class="btn btn-outline-primary">Написать</a>
+                    </div>
                 {% endif %}
             </div>
         </div>
     </div>
 
     <div class="col-md-8">
-        {% if can_edit %}
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2>Мои публикации</h2>
-                <a href="{{ url_for('create_post') }}" class="btn btn-primary">Новый пост</a>
-            </div>
-        {% else %}
-            <h2 class="mb-4">Публикации</h2>
-        {% endif %}
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h4 mb-0">{{ 'Мои публикации' if can_edit else 'Публикации' }}</h2>
+            {% if can_edit %}<a href="{{ url_for('create_post') }}" class="btn btn-primary btn-sm">Новый пост</a>{% endif %}
+        </div>
 
         {% if posts %}
             <div class="list-group">
@@ -42,10 +53,13 @@
                 <a href="{{ url_for('view_post', post_id=post.id) }}" class="list-group-item list-group-item-action">
                     <div class="d-flex justify-content-between">
                         <h5 class="mb-1">{{ post.title }}</h5>
-                        <small class="text-muted">{{ post.created_at.strftime('%d.%m.%Y') }}</small>
+                        <small class="text-muted">{{ post.created_at|ts('%d.%m.%Y') }}</small>
                     </div>
                     <p class="mb-1">{{ post.content|truncate(200) }}</p>
-                    <small>{{ post.comments|length }} комментариев</small>
+                    <small>
+                        {{ post.comments|length }} комментариев
+                        {% if post.is_anonymous %}· <i class="bi bi-incognito"></i> опубликован анонимно{% endif %}
+                    </small>
                 </a>
                 {% endfor %}
             </div>

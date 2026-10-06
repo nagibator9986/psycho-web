@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Результаты: {{ test.title|truncate(40) }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-2">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{{ url_for('tests') }}">Мои тесты</a></li>
+    <li class="breadcrumb-item active">Результаты</li>
+  </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-1">{{ test.title }}</h1>
+    <div class="small text-muted">{{ results|length }} результатов · максимальный балл {{ max_score }}{% if alerts %} · <span class="text-danger">{{ alerts|length }} требуют внимания</span>{% endif %}</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{{ url_for('download_test_results', test_id=test.id) }}" class="btn btn-sm btn-outline-success"><i class="bi bi-file-pdf"></i> PDF</a>
+    <a href="{{ url_for('export_test_results', test_id=test.id) }}" class="btn btn-sm btn-outline-success"><i class="bi bi-filetype-csv"></i> Excel (CSV)</a>
+    <a href="{{ url_for('add_questions', test_id=test.id) }}" class="btn btn-sm btn-outline-secondary">Вопросы</a>
+  </div>
+</div>
+
+{% if results %}
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <input id="searchInput" type="search" class="form-control" style="max-width: 280px" placeholder="Поиск по ФИО или логину">
+  <select id="groupFilter" class="form-select" style="max-width: 220px">
+    <option value="">Все группы</option>
+    {% for g in groups %}<option value="{{ g }}">{{ g }}</option>{% endfor %}
+  </select>
+  {% if alerts %}
+  <div class="form-check align-self-center ms-1">
+    <input class="form-check-input" type="checkbox" id="alertOnly">
+    <label class="form-check-label" for="alertOnly">Только требующие внимания</label>
+  </div>
+  {% endif %}
+</div>
+
+<div class="table-responsive">
+  <table class="table table-hover align-middle" id="resultsTable">
+    <thead class="table-light">
+      <tr>
+        <th>Студент</th>
+        <th>Группа</th>
+        <th>Дата</th>
+        <th class="text-end">Балл</th>
+        <th>Интерпретация</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in results %}
+      {% set g = r.user.group.name if r.user.group else '' %}
+      <tr data-group="{{ g }}" data-alert="{{ 1 if r.id in alerts else 0 }}" class="{{ 'table-danger' if r.id in alerts }}">
+        <td>
+          <a href="{{ url_for('student_analytics', student_id=r.user.id) }}" class="text-decoration-none">{{ r.user.display_name }}</a>
+          <div class="small text-muted">{{ r.user.username }}</div>
+        </td>
+        <td>{{ g or '—' }}</td>
+        <td class="text-nowrap">{{ r.created_at|ts }}</td>
+        <td class="text-end fw-semibold">{{ r.score if r.score is not none else '—' }}</td>
+        <td class="small">{{ (r.result_text or '')|truncate(90) }}</td>
+        <td><a href="{{ url_for('test_result', result_id=r.id) }}" class="btn btn-sm btn-outline-primary">Ответы</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="small text-muted" id="resultCounter"></div>
+{% else %}
+  <div class="alert alert-info">Тест ещё никто не прошёл.</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const table = document.getElementById('resultsTable');
+  if (!table) return;
+  const rows = Array.from(table.tBodies[0].rows);
+  const search = document.getElementById('searchInput');
+  const group = document.getElementById('groupFilter');
+  const alertOnly = document.getElementById('alertOnly');
+  const counter = document.getElementById('resultCounter');
+
+  function apply() {
+    const q = search.value.trim().toLowerCase();
+    const g = group.value;
+    const onlyAlert = alertOnly && alertOnly.checked;
+    let shown = 0;
+    rows.forEach(function (row) {
+      const ok = (!g || row.dataset.group === g)
+        && (!q || row.cells[0].innerText.toLowerCase().includes(q))
+        && (!onlyAlert || row.dataset.alert === '1');
+      row.style.display = ok ? '' : 'none';
+      if (ok) shown++;
+    });
+    counter.textContent = 'Показано: ' + shown + ' из ' + rows.length;
+  }
+  [search, group, alertOnly].forEach(function (el) { if (el) el.addEventListener('input', apply); });
+  if (alertOnly) alertOnly.addEventListener('change', apply);
+  apply();
+})();
+</script>
+{% endblock %}

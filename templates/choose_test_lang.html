@@ -1,15 +1,17 @@
 {% extends "base.html" %}
 
+{% block title %}Выбор языка теста{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center">
-  <div class="col-md-6">
-    <div class="card shadow-sm mt-4">
+  <div class="col-md-7 col-lg-6">
+    <div class="card shadow-sm mt-2">
       <div class="card-body p-4 text-center">
-        <h3 class="mb-3">Выбор языка теста</h3>
+        <h3 class="mb-3">Выберите язык / Тілді таңдаңыз</h3>
         <p class="mb-4">
-          Тест: {{ test.title }}{% if test.title_kk %} / {{ test.title_kk }}{% endif %}
+          {{ test.title }}{% if test.title_kk and test.title_kk != test.title %}<br><span class="text-muted">{{ test.title_kk }}</span>{% endif %}
         </p>
-        <div class="d-flex flex-column gap-2">
+        <div class="d-grid gap-2">
           <a href="{{ url_for('take_test', test_id=test.id, lang='ru') }}" class="btn btn-primary btn-lg">
             Проходить на русском
           </a>

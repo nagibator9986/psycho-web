@@ -1,138 +1,137 @@
 {% extends "base.html" %}
+{% from '_macros.html' import avatar %}
 
-{% block title %}Результаты теста{% endblock %}
+{% block title %}Результат теста{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
   <div class="col-lg-10 col-xl-9">
 
-    <!-- Шапка / хлебные крошки -->
     <nav aria-label="breadcrumb" class="mb-3">
-      <ol class="breadcrumb">
+      <ol class="breadcrumb mb-0">
         <li class="breadcrumb-item"><a href="{{ url_for('tests') }}">Тесты</a></li>
+        {% if is_psychologist() %}
+          <li class="breadcrumb-item"><a href="{{ url_for('test_results', test_id=result.test_id) }}">{{ result.test.title|truncate(40) }}</a></li>
+        {% endif %}
         <li class="breadcrumb-item active" aria-current="page">Результат</li>
       </ol>
     </nav>
 
-    <!-- Итоговый результат -->
-    <div class="card border-0 shadow-sm mb-4">
-      <div class="card-body p-4 p-lg-5 text-center">
-        <div class="d-flex align-items-center justify-content-center gap-2 mb-2">
-          <i class="bi bi-graph-up-arrow fs-3 text-primary"></i>
-          <h2 class="mb-0">Ваш результат</h2>
-        </div>
-
-        {% if is_psychologist() %}
-
-          {# Определяем максимальный балл по интерпретациям, если есть #}
-          {% set max_score = 0 %}
-          {% if result.test and result.test.interpretations %}
-            {% for it in result.test.interpretations %}
-              {% if it.max_score > max_score %}{% set max_score = it.max_score %}{% endif %}
-            {% endfor %}
-          {% endif %}
-          {% if max_score > 0 %}
-            {% set pct = (result.score * 100 // max_score) if result.score is not none else 0 %}
-            <div class="progress mb-3" role="progressbar" aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100">
-              <div class="progress-bar progress-bar-striped" style="width: {{ pct }}%">{{ pct }}%</div>
-            </div>
-            <div class="small text-muted mb-3">Макс. балл по шкале: {{ max_score }}</div>
-          {% endif %}
-
-          <p class="lead mb-0">{{ result.result_text }}</p>
-        {% else %}
-          <p class="lead text-muted mb-3">
-            Ниже приведён краткий итог. Подробные разборы ответов видны вашему психологу.
+    {% if is_student() %}
+      <!-- Студент видит подтверждение; разбор результатов делает психолог -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-4 p-lg-5 text-center">
+          <i class="bi bi-check2-circle text-success" style="font-size: 3rem;"></i>
+          <h2 class="mt-2">Тест завершён</h2>
+          <p class="lead text-muted mb-1">{{ result.test.title }}</p>
+          <p class="text-muted">{{ result.created_at|ts }}</p>
+          <p class="mb-4">
+            Спасибо! Ваши ответы сохранены и доступны психологу. Если понадобится, он свяжется с вами.
           </p>
-          
-          
-          <div class="alert alert-info mb-0">
-            Ваши ответы сохранены и доступны специалисту для анализа. При необходимости он свяжется с вами.
+          <div class="d-flex flex-wrap justify-content-center gap-2">
+            <a class="btn btn-light" href="{{ url_for('tests') }}"><i class="bi bi-arrow-left me-1"></i> К тестам</a>
+            <a class="btn btn-primary" href="{{ url_for('messages') }}"><i class="bi bi-chat-dots me-1"></i> Написать психологу</a>
           </div>
-        {% endif %}
-
-        <div class="d-flex flex-wrap justify-content-center gap-2 mt-4">
-          {% if is_psychologist() %}
-            <a class="btn btn-outline-primary" href="{{ url_for('download_test_results', test_id=result.test_id) }}">
-              <i class="bi bi-download me-1"></i> Скачать сводку по тесту
-            </a>
-          {% endif %}
-          <a class="btn btn-light" href="{{ url_for('tests') }}">
-            <i class="bi bi-arrow-left me-1"></i> К списку тестов
-          </a>
-          {% if not is_psychologist() %}
-            <a class="btn btn-primary" href="{{ url_for('messages') }}">
-              <i class="bi bi-chat-dots me-1"></i> Написать психологу
-            </a>
-          {% endif %}
-          <button class="btn btn-outline-secondary" onclick="window.print()">
-            <i class="bi bi-printer me-1"></i> Печать
-          </button>
         </div>
       </div>
-    </div>
-
-    <!-- Блок «что дальше» -->
-    <div class="card border-0 shadow-sm mb-4">
-      <div class="card-body p-4">
-        <div class="d-flex align-items-center gap-2 mb-2">
-          <i class="bi bi-info-circle fs-5 text-primary"></i>
-          <h5 class="mb-0">Что дальше?</h5>
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+          <h5><i class="bi bi-info-circle text-primary"></i> Что дальше?</h5>
+          <p class="mb-2">Результат теста — это ориентир, а не диагноз. Если вы чувствуете тревогу, усталость или дискомфорт, это нормальная реакция, и с этим можно справиться.</p>
+          <ul class="mb-0 ps-3">
+            <li>Напишите психологу — открыто или анонимно.</li>
+            <li>Поддержите себя: режим сна, прогулки, дыхательные упражнения.</li>
+            <li>Если становится совсем тяжело — <a href="{{ url_for('emergency') }}">экстренная помощь</a>, телефон <b>150</b> или <b>111</b>.</li>
+          </ul>
         </div>
-        {% if is_psychologist() %}
-          <p class="mb-2">Рекомендуется обсудить результаты со студентом и сопоставить их с наблюдениями, динамикой состояний и внешними факторами (учебная нагрузка, сон, стрессоры). При необходимости добавьте рекомендации и назначьте встречу прямо из панели.</p>
-          <ul class="mb-0 ps-3">
-            <li>Сформулируйте краткие цели и гипотезы по результатам теста.</li>
-            <li>Назначьте дату фоллоу‑ап встречи для мониторинга изменений.</li>
-            <li>Прикрепите отчёт в карточку студента (раздел «Студенты» → «Аналитика»).</li>
-          </ul>
-        {% else %}
-          <p class="mb-2">Результат — это ориентир, а не диагноз. Если вы чувствуете дискомфорт, тревогу или усталость — это нормальная реакция. Мы рядом, чтобы помочь.</p>
-          <ul class="mb-0 ps-3">
-            <li>Напишите психологу, если хотите получить рекомендации.</li>
-            <li>Попробуйте практики самопомощи: режим сна, короткие прогулки, дыхательные упражнения.</li>
-            <li>При ухудшении самочувствия используйте раздел «Экстренная помощь».</li>
-          </ul>
-        {% endif %}
       </div>
-    </div>
-
-    <!-- Ответы на вопросы (только для психолога) -->
-    {% if is_psychologist() %}
-      <div class="d-flex align-items-center gap-2 mb-2">
-        <i class="bi bi-list-check fs-5 text-primary"></i>
-        <h4 class="mb-0">Ответы студента</h4>
-      </div>
-
-      {% for answer in result.answers %}
-        <div class="card mb-3 border-0 shadow-sm">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start mb-2">
-              <h5 class="card-title mb-0">Вопрос {{ loop.index }}</h5>
-              <span class="badge bg-light text-dark">ID: {{ answer.question_id }}</span>
-            </div>
-            <p class="card-text">{{ answer.question.text }}</p>
-
-            {% if answer.option %}
-              <div class="d-flex align-items-center gap-2 flex-wrap">
-                <span class="badge bg-primary-subtle text-primary border">Выбранный вариант</span>
-                <span class="badge bg-secondary-subtle text-secondary border">Баллы: {{ answer.option.score or 0 }}</span>
+    {% else %}
+      <!-- Психолог / администратор -->
+      {% set student = result.user %}
+      <div class="card border-0 shadow-sm mb-4 {% if is_alert %}result-alert{% endif %}">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div class="d-flex align-items-center gap-3">
+              {{ avatar(student, 56) }}
+              <div>
+                <h2 class="h4 mb-0">{{ student.display_name }}</h2>
+                <div class="text-muted small">
+                  {{ student.username }}{% if student.group %} · {{ student.group.name }} ({{ student.group.course }} курс){% endif %}
+                </div>
               </div>
-              <p class="mt-2 mb-0"><strong>Ответ:</strong> {{ answer.option.text }}</p>
-            {% elif answer.answer_text %}
-              <p class="mb-0"><strong>Ответ (текст):</strong> {{ answer.answer_text }}</p>
-            {% else %}
-              <p class="text-muted mb-0">Ответ не указан.</p>
-            {% endif %}
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+              {% if is_psychologist() %}
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('student_analytics', student_id=student.id) }}">Карточка студента</a>
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('chat', contact_id=student.id) }}">Написать</a>
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('create_appointment', student_id=student.id) }}">Назначить встречу</a>
+              {% endif %}
+              <button class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i></button>
+            </div>
+          </div>
+
+          <hr>
+          <div class="mb-1 text-muted small">
+            {{ result.test.title }} · {{ result.created_at|ts }} · язык: {{ 'казахский' if result.language == 'kk' else 'русский' }}
+          </div>
+          <div class="d-flex align-items-center gap-3 flex-wrap mb-2">
+            <div class="display-6 fw-bold">{{ result.score if result.score is not none else '—' }}</div>
+            {% if max_score %}<div class="text-muted">из {{ max_score }}</div>{% endif %}
+            {% if is_alert %}<span class="badge bg-danger"><i class="bi bi-bell-fill"></i> требует внимания</span>{% endif %}
+          </div>
+          {% if max_score and result.score is not none %}
+            {% set pct = [[(result.score * 100 / max_score)|round|int, 0]|max, 100]|min %}
+            <div class="progress mb-3" style="height: 8px;"><div class="progress-bar {{ 'bg-danger' if is_alert }}" style="width: {{ pct }}%"></div></div>
+          {% endif %}
+          <p class="lead mb-0 text-pre">{{ result.result_text }}</p>
+        </div>
+      </div>
+
+      {% if profile %}
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+          <h5 class="mb-3">Профиль по подшкалам</h5>
+          {% for p in profile %}
+            <div class="mb-3">
+              <div class="d-flex justify-content-between small">
+                <strong>{{ p.name }}</strong>
+                <span>{{ p.score }} из {{ p.max }} ({{ p.percent }}%) — {{ p.level }}</span>
+              </div>
+              <div class="progress" style="height: 8px;">
+                <div class="progress-bar {{ 'bg-danger' if p.percent >= 75 else ('bg-warning' if p.percent >= 50 else '') }}" style="width: {{ p.percent }}%"></div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <h4 class="mb-3"><i class="bi bi-list-check text-primary"></i> Ответы</h4>
+      {% for row in rows %}
+        <div class="card mb-2 border-0 shadow-sm">
+          <div class="card-body py-3">
+            <div class="d-flex justify-content-between gap-2">
+              <div>
+                <div class="fw-semibold"><span class="text-muted">{{ row.number }}.</span> {{ row.question.text }}</div>
+                {% if result.language == 'kk' and row.question.text_kk %}
+                  <div class="small text-muted">KZ: {{ row.question.text_kk }}</div>
+                {% endif %}
+              </div>
+              {% if row.options %}<span class="badge bg-secondary-subtle text-secondary border align-self-start">{{ row.score }} б.</span>{% endif %}
+            </div>
+            <div class="mt-1">
+              {% if row.options %}
+                {% for opt in row.options %}<span class="badge bg-primary-subtle text-primary border me-1">{{ opt.text }}</span>{% endfor %}
+              {% elif row.text %}
+                <div class="text-pre">{{ row.text }}</div>
+              {% else %}
+                <span class="text-muted small">Без ответа</span>
+              {% endif %}
+            </div>
           </div>
         </div>
       {% endfor %}
-    {% else %}
-      <div class="alert alert-info mt-3">
-        Ответы на вопросы сохраняются в системе и доступны вашему психологу для анализа. При необходимости он свяжется с вами для обратной связи.
-      </div>
     {% endif %}
-
   </div>
 </div>
 {% endblock %}
@@ -140,23 +139,9 @@
 {% block extra_css %}
 <style>
   @media print {
-    nav, footer, .breadcrumb, .btn { display:none !important; }
-    .card { box-shadow:none !important; border:1px solid #ccc; }
-    body { background:#fff; }
+    header, footer, .breadcrumb, .btn { display: none !important; }
+    .card { box-shadow: none !important; border: 1px solid #ccc !important; }
+    body { background: #fff !important; }
   }
 </style>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-  // Анимация прогресс-бара при загрузке
-  document.addEventListener('DOMContentLoaded', function () {
-    const pb = document.querySelector('.progress-bar');
-    if (!pb) return;
-    const target = parseInt(pb.style.width);
-    pb.style.width = '0%';
-    let cur = 0; const step = () => { cur += 2; if (cur > target) cur = target; pb.style.width = cur + '%'; if (cur < target) requestAnimationFrame(step); };
-    requestAnimationFrame(step);
-  });
-</script>
 {% endblock %}

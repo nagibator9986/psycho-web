@@ -1,39 +1,52 @@
 {% extends "base.html" %}
+
+{% block title %}Протокол встречи{% endblock %}
+
 {% block content %}
-<div class="container mt-5">
-    <h2>Создание протокола встречи с {{ meeting.student.full_name or meeting.student.username }}</h2>
-    <p>Дата встречи: {{ meeting.scheduled_at.strftime('%d.%m.%Y %H:%M') }}</p>
-    
-    <form method="POST" action="{{ url_for('create_protocol', meeting_id=meeting.id) }}">
-        <div class="mb-3">
-            <label for="duration" class="form-label">Продолжительность (минуты):</label>
-            <input type="number" class="form-control" id="duration" name="duration" required>
-        </div>
-        <div class="mb-3">
-            <label for="topics_discussed" class="form-label">Обсуждаемые темы:</label>
-            <textarea class="form-control" id="topics_discussed" name="topics_discussed" rows="4"></textarea>
-        </div>
-        <div class="mb-3">
-            <label for="emotional_state" class="form-label">Эмоциональное состояние:</label>
-            <textarea class="form-control" id="emotional_state" name="emotional_state" rows="4"></textarea>
-        </div>
-        <div class="mb-3">
-            <label for="progress_notes" class="form-label">Заметки о прогрессе:</label>
-            <textarea class="form-control" id="progress_notes" name="progress_notes" rows="4"></textarea>
-        </div>
-        <div class="mb-3">
-            <label for="recommendations" class="form-label">Рекомендации:</label>
-            <textarea class="form-control" id="recommendations" name="recommendations" rows="4"></textarea>
-        </div>
-        <div class="mb-3">
-            <label for="homework" class="form-label">Домашнее задание:</label>
-            <textarea class="form-control" id="homework" name="homework" rows="4"></textarea>
-        </div>
-        <div class="mb-3">
-            <label for="additional_comments" class="form-label">Дополнительные комментарии:</label>
-            <textarea class="form-control" id="additional_comments" name="additional_comments" rows="4"></textarea>
-        </div>
-        <button type="submit" class="btn btn-primary">Создать протокол</button>
-    </form>
-</div>
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{{ url_for('appointments') }}">Встречи</a></li>
+    <li class="breadcrumb-item active">Протокол</li>
+  </ol>
+</nav>
+
+<h1 class="h3 mb-1">Протокол встречи: {{ meeting.student.display_name }}</h1>
+<p class="text-muted mb-4">Дата встречи: {{ meeting.scheduled_at|when }}. После сохранения встреча отмечается как состоявшаяся.</p>
+
+{% if meeting.protocols %}
+  <div class="alert alert-info small">
+    К этой встрече уже есть протоколы:
+    {% for p in meeting.protocols %}
+      <a href="{{ url_for('download_protocol', protocol_id=p.id) }}">PDF от {{ p.created_at|ts }}</a>{% if not loop.last %}, {% endif %}
+    {% endfor %}
+  </div>
+{% endif %}
+
+<form method="POST" action="{{ url_for('create_protocol', meeting_id=meeting.id) }}">
+  {{ csrf_field() }}
+  <div class="mb-3" style="max-width: 260px;">
+    <label for="duration" class="form-label">Продолжительность, минут</label>
+    <input type="number" class="form-control" id="duration" name="duration" min="1" max="600"
+           value="{{ values.get('duration', '') }}" required>
+  </div>
+  <div class="row g-3">
+    {% for name, label in [
+      ('topics_discussed', 'Обсуждаемые темы'),
+      ('emotional_state', 'Эмоциональное состояние'),
+      ('progress_notes', 'Заметки о прогрессе'),
+      ('recommendations', 'Рекомендации'),
+      ('homework', 'Домашнее задание'),
+      ('additional_comments', 'Дополнительные комментарии'),
+    ] %}
+    <div class="col-md-6">
+      <label for="{{ name }}" class="form-label">{{ label }}</label>
+      <textarea class="form-control" id="{{ name }}" name="{{ name }}" rows="4">{{ values.get(name, '') }}</textarea>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="d-flex gap-2 mt-4">
+    <button type="submit" class="btn btn-primary">Сохранить протокол</button>
+    <a href="{{ url_for('appointments') }}" class="btn btn-light">Отмена</a>
+  </div>
+</form>
 {% endblock %}

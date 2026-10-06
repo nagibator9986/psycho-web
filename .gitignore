@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# Данные и секреты — не для репозитория
+instance/*.db
+instance/*.db-*
+instance/secret_key
+static/uploads/
+static/reports/
+
+.pytest_cache/
+.DS_Store

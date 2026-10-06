@@ -1,78 +1,80 @@
 {% extends "base.html" %}
+{% from '_macros.html' import avatar, pager, empty %}
+
+{% block title %}Форум{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>Сообщество</h1>
-    <a href="{{ url_for('create_post') }}" class="btn btn-primary">Новый пост</a>
+    <h1 class="h3 mb-0">Сообщество</h1>
+    <a href="{{ url_for('create_post') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Новый пост</a>
 </div>
 
-{% if posts %}
-    <div class="row">
-        <div class="col-lg-8">
-            {% for post in posts %}
-            <div class="card mb-4">
-                <div class="card-body">
-                    <div class="d-flex align-items-center mb-3">
-                        {% if post.author.profile_pic %}
-                            <img src="{{ url_for('static', filename='uploads/' + post.author.profile_pic) }}" class="rounded-circle me-2" width="40" height="40">
-                        {% else %}
-                            <div class="rounded-circle bg-secondary me-2" style="width: 40px; height: 40px;"></div>
+<div class="row g-4">
+    <div class="col-lg-8">
+        {% for post in posts %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    {{ avatar(None if post.is_anonymous else post.author, 36) }}
+                    <div>
+                        <div class="fw-semibold">{{ 'Аноним' if post.is_anonymous else post.author.display_name }}</div>
+                        <small class="text-muted">{{ post.created_at|ts('%d.%m.%Y в %H:%M') }}</small>
+                    </div>
+                </div>
+                <h3 class="h5"><a href="{{ url_for('view_post', post_id=post.id) }}" class="text-decoration-none text-reset">{{ post.title }}</a></h3>
+                <p class="text-pre mb-2">{{ post.content|truncate(400) }}</p>
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <a href="{{ url_for('view_post', post_id=post.id) }}" class="btn btn-sm btn-outline-primary">
+                        Комментарии ({{ post.comments|length }})
+                    </a>
+                    <div class="d-flex gap-1">
+                        {% if post.user_id == get_current_user().id %}
+                            <a href="{{ url_for('edit_post', post_id=post.id) }}" class="btn btn-sm btn-outline-secondary">Редактировать</a>
                         {% endif %}
+                        {% if post.user_id == get_current_user().id or can_moderate %}
+                            <form method="post" action="{{ url_for('delete_post', post_id=post.id) }}" data-confirm="Удалить пост вместе с комментариями?">
+                                {{ csrf_field() }}
+                                <button class="btn btn-sm btn-outline-danger">Удалить</button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+            <div class="alert alert-info">
+                Пока нет ни одного поста. <a href="{{ url_for('create_post') }}" class="alert-link">Создайте первый</a>.
+            </div>
+        {% endfor %}
+        {{ pager(pagination, 'posts') }}
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header"><h5 class="mb-0">Психологи</h5></div>
+            <div class="list-group list-group-flush">
+                {% for psych in psychologists %}
+                <a href="{{ url_for('profile', username=psych.username) }}" class="list-group-item list-group-item-action">
+                    <div class="d-flex align-items-center gap-2">
+                        {{ avatar(psych, 36) }}
                         <div>
-                            <h6 class="mb-0">{{ post.author.full_name if post.author.full_name else post.author.username }}</h6>
-                            <small class="text-muted">{{ post.created_at.strftime('%d.%m.%Y в %H:%M') }}</small>
+                            <div class="fw-semibold">{{ psych.display_name }}</div>
+                            <small class="text-muted">{{ psych.bio|truncate(40) if psych.bio else 'Психолог' }}</small>
                         </div>
                     </div>
-                    
-                    <h3>{{ post.title }}</h3>
-                    <p>{{ post.content }}</p>
-                    
-                    <div class="d-flex justify-content-between align-items-center mt-3">
-                        <a href="{{ url_for('view_post', post_id=post.id) }}" class="btn btn-sm btn-outline-primary">
-                            Комментарии ({{ post.comments|length }})
-                        </a>
-                        {% if post.user_id == session.get('user_id') %}
-                            <div>
-                                <a href="#" class="btn btn-sm btn-outline-secondary">Редактировать</a>
-                                <a href="#" class="btn btn-sm btn-outline-danger">Удалить</a>
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
+                </a>
+                {% else %}
+                <div class="list-group-item text-muted">Психологи пока не добавлены</div>
+                {% endfor %}
             </div>
-            {% endfor %}
         </div>
-        
-        <div class="col-lg-4">
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0">Популярные психологи</h5>
-                </div>
-                <div class="card-body">
-                    <div class="list-group list-group-flush">
-                        {% for psych in psychologists %}
-                        <a href="{{ url_for('profile', username=psych.username) }}" class="list-group-item list-group-item-action">
-                            <div class="d-flex align-items-center">
-                                {% if psych.profile_pic %}
-                                    <img src="{{ url_for('static', filename='uploads/' + psych.profile_pic) }}" class="rounded-circle me-2" width="40" height="40">
-                                {% else %}
-                                    <div class="rounded-circle bg-secondary me-2" style="width: 40px; height: 40px;"></div>
-                                {% endif %}
-                                <div>
-                                    <h6 class="mb-0">{{ psych.full_name if psych.full_name else psych.username }}</h6>
-                                    <small class="text-muted">{{ psych.bio|truncate(30) if psych.bio else "Психолог" }}</small>
-                                </div>
-                            </div>
-                        </a>
-                        {% endfor %}
-                    </div>
-                </div>
+        <div class="card">
+            <div class="card-body small text-muted">
+                <b>Правила сообщества.</b> Поддерживайте друг друга, не публикуйте чужие личные данные.
+                Студенты могут писать анонимно. Если вам или кому-то рядом плохо прямо сейчас —
+                <a href="{{ url_for('emergency') }}">экстренная помощь</a>.
             </div>
         </div>
     </div>
-{% else %}
-    <div class="alert alert-info">
-        Пока нет ни одного поста. <a href="{{ url_for('create_post') }}" class="alert-link">Создайте первый пост</a>.
-    </div>
-{% endif %}
+</div>
 {% endblock %}

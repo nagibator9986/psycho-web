@@ -1,168 +1,246 @@
-<!doctype html>
-<html lang="ru">
-<head>
-  <meta charset="utf-8">
-  <title>SuperAdmin</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body{font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin:24px;}
-    header{display:flex; gap:16px; align-items:center; margin-bottom:16px;}
-    form.inline{display:flex; flex-wrap:wrap; gap:8px; align-items:center;}
-    input, select, button{padding:6px 10px; font-size:14px}
-    table{width:100%; border-collapse:collapse; margin-top:12px}
-    th, td{border:1px solid #ddd; padding:8px; vertical-align:top}
-    th{background:#f5f5f7; text-align:left}
-    .row{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:24px}
-    .card{border:1px solid #e5e5e5; border-radius:8px; padding:16px}
-    .muted{color:#666}
-    .actions{display:flex; gap:8px; flex-wrap:wrap}
-  </style>
-</head>
-<body>
-<header>
-  <h1>Панель SuperAdmin</h1>
-  <a href="{{ url_for('index') }}">← На сайт</a>
-</header>
+{% extends "base.html" %}
 
-<!-- Фильтры / поиск / сортировка / пагинация -->
-<form class="inline" method="get" action="{{ url_for('admin.superadmin_home') }}">
-  <input type="text" name="q" placeholder="Поиск (username/email/ФИО)" value="{{ q }}">
-  <select name="role">
-    <option value="">Роль: все</option>
-    {% for r in roles %}
-      <option value="{{ r }}" {{ 'selected' if role==r else '' }}>{{ r }}</option>
-    {% endfor %}
-  </select>
-  <select name="group">
-    <option value="">Группа: все</option>
-    {% for g in groups %}
-      <option value="{{ g }}" {{ 'selected' if group==g else '' }}>{{ g }}</option>
-    {% endfor %}
-  </select>
-  <select name="sort">
-    <option value="date_desc"  {{ 'selected' if sort=='date_desc'  else '' }}>Новые сверху</option>
-    <option value="date_asc"   {{ 'selected' if sort=='date_asc'   else '' }}>Старые сверху</option>
-    <option value="name_asc"   {{ 'selected' if sort=='name_asc'   else '' }}>ФИО ↑</option>
-    <option value="name_desc"  {{ 'selected' if sort=='name_desc'  else '' }}>ФИО ↓</option>
-    <option value="group_asc"  {{ 'selected' if sort=='group_asc'  else '' }}>Группа ↑</option>
-    <option value="group_desc" {{ 'selected' if sort=='group_desc' else '' }}>Группа ↓</option>
-    <option value="role_asc"   {{ 'selected' if sort=='role_asc'   else '' }}>Роль ↑</option>
-    <option value="role_desc"  {{ 'selected' if sort=='role_desc'  else '' }}>Роль ↓</option>
-  </select>
-  <select name="per_page">
-    {% for n in [20,50,100] %}
-      <option value="{{n}}" {{ 'selected' if per_page==n else '' }}>{{n}} на страницу</option>
-    {% endfor %}
-  </select>
-  <button type="submit">Применить</button>
+{% block title %}Администрирование{% endblock %}
+
+{% block content %}
+{% set me = get_current_user() %}
+{% set here = request.full_path %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h1 class="h3 mb-0">Администрирование</h1>
+  <span class="text-muted small">{{ ROLE_NAMES.get(me.role) }} · {{ me.username }}</span>
+</div>
+{% include '_admin_nav.html' %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-2"><div class="stat-tile"><div class="stat-value">{{ stats.get('student', 0) }}</div><div class="stat-label">студентов</div></div></div>
+  <div class="col-6 col-md-2"><div class="stat-tile"><div class="stat-value">{{ stats.get('psychologist', 0) }}</div><div class="stat-label">психологов</div></div></div>
+  <div class="col-6 col-md-2"><div class="stat-tile"><div class="stat-value">{{ stats.get('admin', 0) + stats.get('superadmin', 0) }}</div><div class="stat-label">администраторов</div></div></div>
+  <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value">{{ stats.tests }}</div><div class="stat-label">тестов</div></div></div>
+  <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value">{{ stats.results }}</div><div class="stat-label">результатов тестов</div></div></div>
+</div>
+
+<!-- Фильтры -->
+<form class="row g-2 mb-3" method="get" action="{{ url_for('admin.superadmin_home') }}">
+  <div class="col-md-3"><input type="search" class="form-control" name="q" placeholder="Логин, email или ФИО" value="{{ q }}"></div>
+  <div class="col-6 col-md-2">
+    <select name="role" class="form-select">
+      <option value="">Все роли</option>
+      {% for r in roles %}<option value="{{ r }}" {{ 'selected' if role == r }}>{{ ROLE_NAMES.get(r, r) }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-6 col-md-2">
+    <select name="group" class="form-select">
+      <option value="">Все группы</option>
+      {% for g in groups %}<option value="{{ g }}" {{ 'selected' if group == g }}>{{ g }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-6 col-md-2">
+    <select name="sort" class="form-select">
+      {% for key, label in [('date_desc', 'Новые сверху'), ('date_asc', 'Старые сверху'), ('name_asc', 'ФИО ↑'), ('name_desc', 'ФИО ↓'),
+                            ('group_asc', 'Группа ↑'), ('group_desc', 'Группа ↓'), ('role_asc', 'Роль ↑'), ('role_desc', 'Роль ↓')] %}
+        <option value="{{ key }}" {{ 'selected' if sort == key }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-6 col-md-2">
+    <select name="per_page" class="form-select">
+      {% for n in [20, 50, 100] %}<option value="{{ n }}" {{ 'selected' if per_page == n }}>по {{ n }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-md-1 d-grid"><button type="submit" class="btn btn-primary">Найти</button></div>
 </form>
 
-<p class="muted">Всего пользователей: {{ total }}. Стр. {{ page }}, по {{ per_page }}.</p>
+<p class="text-muted small mb-2">Найдено: {{ total }} · страница {{ page }} из {{ pages }}</p>
 
-<!-- Таблица пользователей + массовое удаление -->
-<form method="post" action="{{ url_for('admin.bulk_delete') }}">
-  <div class="actions">
-    <button type="submit" onclick="return confirm('Удалить выбранных пользователей?')">Массовое удаление</button>
-  </div>
-  <table>
-    <thead>
+<!-- Таблица + массовое удаление -->
+<form method="post" action="{{ url_for('admin.bulk_delete') }}" id="bulkForm"
+      data-confirm="Удалить выбранных пользователей вместе с их сообщениями, результатами тестов и записями? Это необратимо.">
+  {{ csrf_field() }}
+  <input type="hidden" name="next" value="{{ here }}">
+</form>
+
+<div class="table-responsive">
+  <table class="table table-sm align-middle">
+    <thead class="table-light">
       <tr>
-        <th style="width:28px"><input type="checkbox" onclick="document.querySelectorAll('.chk').forEach(c=>c.checked=this.checked)"></th>
-        <th>ID</th>
+        <th style="width:28px"><input type="checkbox" class="form-check-input" id="checkAll"></th>
         <th>Логин / Email</th>
         <th>ФИО</th>
         <th>Роль</th>
         <th>Группа</th>
         <th>Создан</th>
-        <th>Действия</th>
+        <th style="width: 1%"></th>
       </tr>
     </thead>
     <tbody>
     {% for u in users %}
+      {% set manageable = can_manage(u) and u.id != me.id %}
       <tr>
-        <td><input class="chk" type="checkbox" name="user_ids[]" value="{{ u.id }}"></td>
-        <td>{{ u.id }}</td>
+        <td>{% if manageable %}<input class="form-check-input chk" type="checkbox" name="user_ids[]" value="{{ u.id }}" form="bulkForm">{% endif %}</td>
         <td>
-          <div><b>{{ u.username }}</b></div>
-          <div class="muted">{{ u.email }}</div>
+          <div class="fw-semibold">{{ u.username }}
+            {% if u.must_change_password %}<i class="bi bi-key text-warning" title="Сменит пароль при входе"></i>{% endif %}
+          </div>
+          <div class="small text-muted">{{ u.email }}</div>
         </td>
         <td>{{ u.full_name or '—' }}</td>
         <td>
-          <!-- Быстрая смена роли -->
-          <form method="post" action="{{ url_for('admin.change_role', user_id=u.id) }}">
-            <select name="role" onchange="this.form.submit()">
-              {% for r in roles %}
-                <option value="{{ r }}" {{ 'selected' if u.role==r else '' }}>{{ r }}</option>
-              {% endfor %}
-            </select>
-          </form>
+          {% if manageable %}
+            <form method="post" action="{{ url_for('admin.change_role', user_id=u.id) }}">
+              {{ csrf_field() }}<input type="hidden" name="next" value="{{ here }}">
+              <select name="role" class="form-select form-select-sm" aria-label="Роль"
+                      onchange="if (confirm('Сменить роль пользователя?')) { this.form.submit(); } else { this.form.reset(); }">
+                {% for r in assignable %}<option value="{{ r }}" {{ 'selected' if u.role == r }}>{{ ROLE_NAMES.get(r, r) }}</option>{% endfor %}
+              </select>
+            </form>
+          {% else %}
+            {{ ROLE_NAMES.get(u.role, u.role) }}
+          {% endif %}
         </td>
         <td>{{ u.group.name if u.group else '—' }}</td>
-        <td>{{ (u.created_at.strftime('%d.%m.%Y %H:%M') if u.created_at) if u.created_at else '—' }}</td>
-        <td class="actions">
-          <!-- Обновление -->
-          <details>
-            <summary>Изм.</summary>
-            <form method="post" action="{{ url_for('admin.update_user', user_id=u.id) }}">
-              <input type="text" name="full_name" placeholder="ФИО" value="{{ u.full_name or '' }}">
-              <input type="email" name="email" placeholder="Email" value="{{ u.email }}">
-              <input type="text" name="group" placeholder="Группа" value="{{ u.group.name if u.group else '' }}">
-              <input type="number" name="course" placeholder="Курс" min="1" step="1">
-              <select name="role">
-                {% for r in roles %}
-                  <option value="{{ r }}" {{ 'selected' if u.role==r else '' }}>{{ r }}</option>
-                {% endfor %}
-              </select>
-              <input type="password" name="password" placeholder="Новый пароль (необязательно)">
-              <button type="submit">Сохранить</button>
-            </form>
-          </details>
-
-          <!-- Удаление одного -->
-          <form method="post" action="{{ url_for('admin.delete_user', user_id=u.id) }}" onsubmit="return confirm('Удалить пользователя {{ u.username }}?')">
-            <button type="submit">Удалить</button>
+        <td class="small text-nowrap">{{ u.created_at|ts('%d.%m.%Y') }}</td>
+        <td class="text-nowrap">
+          {% if manageable or u.id == me.id %}
+          <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#edit{{ u.id }}"
+                  title="Редактировать" aria-label="Редактировать {{ u.username }}">
+            <i class="bi bi-pencil"></i>
+          </button>
+          {% endif %}
+          {% if manageable %}
+          <form method="post" action="{{ url_for('admin.reset_password', user_id=u.id) }}" class="d-inline"
+                data-confirm="Сгенерировать новый временный пароль для {{ u.username }}?">
+            {{ csrf_field() }}<input type="hidden" name="next" value="{{ here }}">
+            <button class="btn btn-sm btn-outline-warning" title="Сбросить пароль" aria-label="Сбросить пароль {{ u.username }}"><i class="bi bi-key"></i></button>
           </form>
+          <form method="post" action="{{ url_for('admin.delete_user', user_id=u.id) }}" class="d-inline"
+                data-confirm="Удалить {{ u.username }} вместе с его данными? Это необратимо.">
+            {{ csrf_field() }}<input type="hidden" name="next" value="{{ here }}">
+            <button class="btn btn-sm btn-outline-danger" title="Удалить" aria-label="Удалить {{ u.username }}"><i class="bi bi-trash"></i></button>
+          </form>
+          {% endif %}
         </td>
       </tr>
+    {% else %}
+      <tr><td colspan="7" class="text-center text-muted py-4">Никого не найдено</td></tr>
     {% endfor %}
     </tbody>
   </table>
-</form>
-
-<div class="row">
-  <!-- Создание пользователя -->
-  <div class="card">
-    <h3>Создать пользователя</h3>
-    <form method="post" action="{{ url_for('admin.create_user') }}">
-      <input type="text" name="username" placeholder="Username" required>
-      <input type="email" name="email" placeholder="Email" required>
-      <input type="text" name="full_name" placeholder="ФИО">
-      <input type="text" name="group" placeholder="Группа (необязательно)">
-      <input type="number" name="course" placeholder="Курс" min="1" step="1">
-      <select name="role">
-        {% for r in roles %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
-      </select>
-      <input type="password" name="password" placeholder="Пароль (если пусто — сгенерируется)">
-      <button type="submit">Создать</button>
-    </form>
-  </div>
-
-  <!-- Массовая загрузка CSV -->
-  <div class="card">
-    <h3>Массовая загрузка CSV</h3>
-    <form method="post" enctype="multipart/form-data" action="{{ url_for('admin.bulk_upload') }}">
-      <input type="file" name="csv" accept=".csv" required>
-      <select name="mode" title="Режим импорта">
-        <option value="create_only">Создавать только новые</option>
-        <option value="upsert">Создавать/обновлять (upsert)</option>
-      </select>
-      <button type="submit">Импортировать</button>
-    </form>
-    <p class="muted">Ожидается CSV UTF-8 с заголовками:<br>
-      <code>username,email,full_name,role,group,course,password</code>
-    </p>
-  </div>
 </div>
 
-</body>
-</html>
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+  <button type="submit" form="bulkForm" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Удалить выбранных</button>
+  {% if pages > 1 %}
+  <nav>
+    <ul class="pagination pagination-sm mb-0">
+      {% set args = {'q': q, 'role': role, 'group': group, 'sort': sort, 'per_page': per_page} %}
+      <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for('admin.superadmin_home', page=page - 1, **args) }}">&laquo;</a></li>
+      <li class="page-item disabled"><span class="page-link">{{ page }} / {{ pages }}</span></li>
+      <li class="page-item {% if page >= pages %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for('admin.superadmin_home', page=page + 1, **args) }}">&raquo;</a></li>
+    </ul>
+  </nav>
+  {% endif %}
+</div>
+
+<!-- Модальные окна редактирования -->
+{% for u in users %}
+{% if (can_manage(u) and u.id != me.id) or u.id == me.id %}
+<div class="modal fade" id="edit{{ u.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" method="post" action="{{ url_for('admin.update_user', user_id=u.id) }}">
+      {{ csrf_field() }}<input type="hidden" name="next" value="{{ here }}">
+      <div class="modal-header"><h5 class="modal-title">{{ u.username }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button></div>
+      <div class="modal-body">
+        <div class="mb-2"><label class="form-label">ФИО</label>
+          <input type="text" name="full_name" class="form-control" value="{{ u.full_name or '' }}" maxlength="100"></div>
+        <div class="mb-2"><label class="form-label">Email</label>
+          <input type="email" name="email" class="form-control" value="{{ u.email }}" required></div>
+        <div class="row g-2 mb-2">
+          <div class="col-8"><label class="form-label">Группа</label>
+            <input type="text" name="group" class="form-control" value="{{ u.group.name if u.group else '' }}" list="groupList"></div>
+          <div class="col-4"><label class="form-label">Курс</label>
+            <input type="number" name="course" class="form-control" min="1" value="{{ u.group.course if u.group else '' }}"></div>
+        </div>
+        {% if u.id != me.id %}
+        <div class="mb-2"><label class="form-label">Роль</label>
+          <select name="role" class="form-select">
+            {% for r in assignable %}<option value="{{ r }}" {{ 'selected' if u.role == r }}>{{ ROLE_NAMES.get(r, r) }}</option>{% endfor %}
+          </select></div>
+        {% endif %}
+        <div class="mb-0"><label class="form-label">Новый пароль</label>
+          <input type="password" name="password" class="form-control" minlength="8" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
+          {% if u.id != me.id %}<div class="form-text">Пользователь сменит его при следующем входе.</div>{% endif %}
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Отмена</button>
+        <button type="submit" class="btn btn-primary">Сохранить</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endfor %}
+
+<datalist id="groupList">{% for g in groups %}<option value="{{ g }}">{% endfor %}</datalist>
+
+<div class="row g-4">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">Создать пользователя</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('admin.create_user') }}" class="row g-2">
+          {{ csrf_field() }}
+          <div class="col-md-6"><input type="text" name="username" class="form-control" placeholder="Логин (ИИН)" required></div>
+          <div class="col-md-6"><input type="email" name="email" class="form-control" placeholder="Email" required></div>
+          <div class="col-12"><input type="text" name="full_name" class="form-control" placeholder="ФИО"></div>
+          <div class="col-md-6"><input type="text" name="group" class="form-control" placeholder="Группа" list="groupList"></div>
+          <div class="col-md-3"><input type="number" name="course" class="form-control" placeholder="Курс" min="1"></div>
+          <div class="col-md-3">
+            <select name="role" class="form-select">
+              {% for r in assignable %}<option value="{{ r }}">{{ ROLE_NAMES.get(r, r) }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-12"><input type="password" name="password" class="form-control" autocomplete="new-password"
+                                     placeholder="Пароль (пусто — сгенерируется и будет показан)"></div>
+          <div class="col-12"><button type="submit" class="btn btn-primary">Создать</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">Массовая загрузка из CSV</div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data" action="{{ url_for('admin.bulk_upload') }}" class="row g-2">
+          {{ csrf_field() }}
+          <div class="col-12"><input type="file" name="csv" class="form-control" accept=".csv,text/csv" required></div>
+          <div class="col-md-8">
+            <select name="mode" class="form-select">
+              <option value="create_only">Только создавать новых</option>
+              <option value="upsert">Создавать и обновлять существующих</option>
+            </select>
+          </div>
+          <div class="col-md-4 d-grid"><button type="submit" class="btn btn-outline-primary">Проверить</button></div>
+        </form>
+        <p class="small text-muted mt-3 mb-0">
+          Заголовки: <code>username,email,full_name,role,group,course,password</code> (разделитель , или ;).
+          Если пароль не указан, будет сгенерирован случайный — после импорта скачайте файл с логинами и паролями.
+          При первом входе пользователь задаст свой пароль.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('checkAll').addEventListener('change', function () {
+  document.querySelectorAll('.chk').forEach(c => { c.checked = this.checked; });
+});
+</script>
+{% endblock %}

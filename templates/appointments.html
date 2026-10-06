@@ -1,134 +1,158 @@
 {% extends "base.html" %}
+{% from '_macros.html' import status_badge, empty %}
+
+{% block title %}Встречи{% endblock %}
+
+{% macro appointment_row(a, show_actions=True) %}
+  {% set psych_view = is_psychologist() %}
+  <div class="list-group-item">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+      <div>
+        <div class="fw-semibold">
+          {{ a.appointment_date|when('%d.%m.%Y, %H:%M') }} ·
+          {% if psych_view %}
+            <a href="{{ url_for('student_analytics', student_id=a.student_id) }}" class="text-decoration-none">{{ a.student.display_name }}</a>
+            {% if a.student.group %}<span class="text-muted small">({{ a.student.group.name }})</span>{% endif %}
+          {% else %}
+            психолог {{ a.psychologist.display_name }}
+          {% endif %}
+        </div>
+        <div class="small text-muted text-pre">{{ a.purpose or 'Цель не указана' }}</div>
+      </div>
+      <div class="d-flex align-items-center gap-1 flex-wrap">
+        {{ status_badge(a.status) }}
+        {% if show_actions %}
+          {% if psych_view and a.status == 'pending' and a.appointment_date > now %}
+            <form method="post" action="{{ url_for('update_appointment', appointment_id=a.id) }}">
+              {{ csrf_field() }}<input type="hidden" name="action" value="confirm">
+              <button class="btn btn-sm btn-success">Подтвердить</button>
+            </form>
+          {% endif %}
+          {% if psych_view and a.status in ['confirmed', 'pending'] and a.appointment_date <= now %}
+            <form method="post" action="{{ url_for('update_appointment', appointment_id=a.id) }}">
+              {{ csrf_field() }}<input type="hidden" name="action" value="complete">
+              <button class="btn btn-sm btn-outline-success">Состоялась</button>
+            </form>
+          {% endif %}
+          {% if psych_view and a.status in ['confirmed', 'completed'] and a.appointment_date <= now %}
+            <a href="{{ url_for('appointment_protocol', appointment_id=a.id) }}" class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-journal-plus"></i> Протокол
+            </a>
+          {% endif %}
+          {% if a.status in ['pending', 'confirmed'] and (a.appointment_date > now or psych_view) %}
+            <form method="post" action="{{ url_for('update_appointment', appointment_id=a.id) }}"
+                  data-confirm="{{ 'Отклонить' if psych_view and a.status == 'pending' else 'Отменить' }} встречу {{ a.appointment_date|when }}?">
+              {{ csrf_field() }}<input type="hidden" name="action" value="cancel">
+              <button class="btn btn-sm btn-outline-secondary">{{ 'Отклонить' if psych_view and a.status == 'pending' else 'Отменить' }}</button>
+            </form>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+{% endmacro %}
+
 {% block content %}
-<div class="container mt-5">
-    <h2>Ваши встречи</h2>
-    
-    <!-- Календарь для психологов -->
-    {% if is_psychologist() %}
-    <div class="mb-4">
-        <h3>Календарь встреч</h3>
-        <div id="calendar"></div>
-    </div>
-    {% endif %}
-    
-    <!-- Предстоящие встречи -->
-    <h3>Предстоящие встречи</h3>
-    <div class="row">
-        {% for meeting in meetings %}
-        {% if meeting.status == 'planned' %}
-        <div class="col-md-4 mb-3">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">Встреча с {{ meeting.student.full_name or meeting.student.username }}</h5>
-                    <p class="card-text">
-                        Дата: {{ meeting.scheduled_at.strftime('%d.%m.%Y %H:%M') }}<br>
-                        Статус: {{ meeting.status }}<br>
-                        {% if is_psychologist() %}
-                        <a href="{{ url_for('create_protocol', meeting_id=meeting.id) }}" class="btn btn-sm btn-primary">Создать протокол</a>
-                        {% endif %}
-                    </p>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-        {% endfor %}
-    </div>
-    
-    <!-- Прошлые встречи -->
-    <h3>История встреч</h3>
-    <div class="row">
-        {% for meeting in meetings %}
-        {% if meeting.status == 'completed' %}
-        <div class="col-md-4 mb-3">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">Встреча с {{ meeting.student.full_name or meeting.student.username }}</h5>
-                    <p class="card-text">
-                        Дата: {{ meeting.scheduled_at.strftime('%d.%m.%Y %H:%M') }}<br>
-                        Статус: {{ meeting.status }}
-                    </p>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-        {% endfor %}
-    </div>
-    
-    <!-- Протоколы встреч -->
-    <h3>Протоколы встреч</h3>
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Студент</th>
-                <th>Дата</th>
-                <th>Темы</th>
-                <th>Действия</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for protocol in protocols %}
-            <tr>
-                <td>{{ protocol.student.full_name or protocol.student.username }}</td>
-                <td>{{ protocol.session_date.strftime('%d.%m.%Y %H:%M') }}</td>
-                <td>{{ protocol.topics_discussed|truncate(50) }}</td>
-                <td>
-                    <a href="{{ url_for('download_protocol', protocol_id=protocol.id) }}" class="btn btn-sm btn-success">Скачать PDF</a>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    
-    <!-- Назначения -->
-    <h3>Назначения</h3>
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Студент</th>
-                <th>Дата</th>
-                <th>Цель</th>
-                <th>Статус</th>
-                <th>Действия</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for appointment in appointments %}
-            <tr>
-                <td>{{ appointment.student.full_name or appointment.student.username }}</td>
-                <td>{{ appointment.appointment_date.strftime('%d.%m.%Y %H:%M') }}</td>
-                <td>{{ appointment.purpose or 'Не указана' }}</td>
-                <td>{{ appointment.status }}</td>
-                <td>
-                    {% if is_psychologist() %}
-                    <form method="POST" action="{{ url_for('update_appointment', appointment_id=appointment.id) }}" style="display:inline;">
-                        <select name="status" onchange="this.form.submit()">
-                            <option value="pending" {% if appointment.status == 'pending' %}selected{% endif %}>Ожидает</option>
-                            <option value="confirmed" {% if appointment.status == 'confirmed' %}selected{% endif %}>Подтверждено</option>
-                            <option value="cancelled" {% if appointment.status == 'cancelled' %}selected{% endif %}>Отменено</option>
-                        </select>
-                    </form>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+  <h1 class="h3 mb-0">Встречи</h1>
+  {% if is_psychologist() %}
+    <a href="{{ url_for('student_list') }}" class="btn btn-primary btn-sm"><i class="bi bi-calendar-plus"></i> Назначить встречу студенту</a>
+  {% else %}
+    <a href="{{ url_for('messages') }}" class="btn btn-primary btn-sm"><i class="bi bi-calendar-plus"></i> Записаться через чат с психологом</a>
+  {% endif %}
 </div>
 
+{% if sections.pending %}
+<div class="section-title"><i class="bi bi-hourglass-split text-warning"></i>
+  {{ 'Заявки студентов' if is_psychologist() else 'Ждут подтверждения психолога' }}</div>
+<div class="list-group mb-4">
+  {% for a in sections.pending %}{{ appointment_row(a) }}{% endfor %}
+</div>
+{% endif %}
+
+<div class="section-title"><i class="bi bi-calendar-check text-primary"></i> Предстоящие</div>
+{% if sections.upcoming %}
+  <div class="list-group mb-4">{% for a in sections.upcoming %}{{ appointment_row(a) }}{% endfor %}</div>
+{% else %}
+  <p class="text-muted mb-4">Подтверждённых встреч нет.</p>
+{% endif %}
+
+{% if is_psychologist() %}
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="d-flex justify-content-between flex-wrap gap-2 mb-2">
+      <div class="section-title mb-0"><i class="bi bi-calendar3"></i> Календарь</div>
+      <div class="small d-flex gap-3">
+        <span><span class="badge" style="background:#eab308">&nbsp;</span> заявка</span>
+        <span><span class="badge" style="background:#4f46e5">&nbsp;</span> подтверждена</span>
+        <span><span class="badge" style="background:#22c55e">&nbsp;</span> состоялась</span>
+      </div>
+    </div>
+    <div id="calendar"></div>
+  </div>
+</div>
+{% endif %}
+
+<div class="section-title"><i class="bi bi-clock-history"></i> Прошедшие</div>
+{% if sections.past %}
+  <div class="list-group mb-4">{% for a in sections.past %}{{ appointment_row(a) }}{% endfor %}</div>
+{% else %}
+  <p class="text-muted mb-4">Прошедших встреч нет.</p>
+{% endif %}
+
+{% if sections.cancelled %}
+<details class="mb-4">
+  <summary class="section-title d-inline-flex"><i class="bi bi-x-circle"></i> Отменённые ({{ sections.cancelled|length }})</summary>
+  <div class="list-group mt-2">{% for a in sections.cancelled %}{{ appointment_row(a, False) }}{% endfor %}</div>
+</details>
+{% endif %}
+
+{% if is_psychologist() %}
+<div class="section-title"><i class="bi bi-journal-text"></i> Протоколы встреч</div>
+{% if protocols %}
+<div class="table-responsive">
+  <table class="table table-sm align-middle">
+    <thead><tr><th>Дата</th><th>Студент</th><th>Темы</th><th></th></tr></thead>
+    <tbody>
+      {% for protocol in protocols %}
+      <tr>
+        <td class="text-nowrap">{{ protocol.session_date|when }}</td>
+        <td>{{ protocol.student.display_name if protocol.student else '—' }}</td>
+        <td class="small">{{ (protocol.topics_discussed or '—')|truncate(60) }}</td>
+        <td><a href="{{ url_for('download_protocol', protocol_id=protocol.id) }}" class="btn btn-sm btn-outline-primary">PDF</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+  <p class="text-muted">Протоколов пока нет — их можно заполнить после встречи.</p>
+{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
 {% if is_psychologist() %}
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        var calendarEl = document.getElementById('calendar');
-        var calendar = new FullCalendar.Calendar(calendarEl, {
-            initialView: 'dayGridMonth',
-            events: '/api/meetings/calendar',
-            eventClick: function(info) {
-                alert('Встреча: ' + info.event.title + '\nДата: ' + info.event.start.toLocaleString());
-            }
-        });
-        calendar.render();
-    });
+document.addEventListener('DOMContentLoaded', function () {
+  const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+    initialView: 'dayGridMonth',
+    locale: 'ru',
+    firstDay: 1,
+    height: 'auto',
+    buttonText: {today: 'Сегодня'},
+    displayEventTime: true,
+    eventTimeFormat: {hour: '2-digit', minute: '2-digit', hour12: false},
+    events: "{{ url_for('meetings_calendar') }}",
+    eventClick: function (info) {
+      const p = info.event.extendedProps;
+      alert(info.event.title + '\n' + info.event.start.toLocaleString('ru-RU') + '\n' + p.status
+            + (p.purpose ? '\nЦель: ' + p.purpose : ''));
+    },
+  });
+  calendar.render();
+});
 </script>
 {% endif %}
 {% endblock %}

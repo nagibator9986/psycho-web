@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Группы{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-3">Администрирование</h1>
+{% include '_admin_nav.html' %}
+
+<form method="post" action="{{ url_for('admin.group_create') }}" class="row g-2 mb-4">
+  {{ csrf_field() }}
+  <div class="col-md-5"><input type="text" name="name" class="form-control" maxlength="100" placeholder="Название новой группы" required></div>
+  <div class="col-md-2"><input type="number" name="course" class="form-control" min="1" value="1" placeholder="Курс"></div>
+  <div class="col-md-2 d-grid"><button class="btn btn-primary">Создать</button></div>
+</form>
+
+<p class="small text-muted">Группы видны студентам при регистрации. Удалить можно только пустую группу.</p>
+
+<div class="table-responsive">
+  <table class="table table-sm align-middle">
+    <thead class="table-light"><tr><th>Название</th><th style="width:110px">Курс</th><th style="width:120px">Участников</th><th style="width:1%"></th></tr></thead>
+    <tbody>
+      {% for g, count in rows %}
+      <tr>
+        <td>
+          <form method="post" action="{{ url_for('admin.group_update', group_id=g.id) }}" id="g{{ g.id }}" class="d-flex gap-2">
+            {{ csrf_field() }}
+            <input type="text" name="name" class="form-control form-control-sm" value="{{ g.name }}" maxlength="100" required>
+          </form>
+        </td>
+        <td><input type="number" name="course" form="g{{ g.id }}" class="form-control form-control-sm" min="1" value="{{ g.course }}"></td>
+        <td>
+          <a href="{{ url_for('admin.superadmin_home', group=g.name) }}">{{ count }}</a>
+        </td>
+        <td class="text-nowrap">
+          <button type="submit" form="g{{ g.id }}" class="btn btn-sm btn-outline-primary" title="Сохранить"><i class="bi bi-check2"></i></button>
+          <form method="post" action="{{ url_for('admin.group_delete', group_id=g.id) }}" class="d-inline" data-confirm="Удалить группу {{ g.name }}?">
+            {{ csrf_field() }}
+            <button class="btn btn-sm btn-outline-danger" {% if count %}disabled title="В группе есть пользователи"{% endif %}><i class="bi bi-trash"></i></button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="text-muted text-center py-4">Групп пока нет</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

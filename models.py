@@ -1,4 +1,8 @@
+import hashlib
+import hmac
 from datetime import datetime
+
+from flask import current_app
 from flask_login import UserMixin
 from extensions import db
 from sqlalchemy.schema import UniqueConstraint
@@ -16,6 +20,8 @@ class User(UserMixin, db.Model):
     profile_pic = db.Column(db.String(100))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     group_id = db.Column(db.Integer, db.ForeignKey('groups.id'))
+    # Пароль выдан администратором/импортом — при входе попросим сменить
+    must_change_password = db.Column(db.Boolean, default=False, nullable=False)
 
     # --------- Связи ---------
 
@@ -90,6 +96,30 @@ class User(UserMixin, db.Model):
         lazy=True,
     )
 
+    @property
+    def session_token(self) -> str:
+        """Меняется вместе с паролем: после смены пароля старые сессии и remember-cookie недействительны."""
+        key = current_app.config['SECRET_KEY'].encode()
+        return hmac.new(key, (self.password or '').encode(), hashlib.sha256).hexdigest()[:20]
+
+    def get_id(self) -> str:
+        return f'{self.id}:{self.session_token}'
+
+    @property
+    def is_staff(self) -> bool:
+        return self.role in ('psychologist', 'admin', 'superadmin')
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role in ('admin', 'superadmin')
+
+    @property
+    def display_name(self) -> str:
+        """Имя для показа другим людям. Логин студента — это ИИН, его не показываем."""
+        if self.full_name:
+            return self.full_name
+        return self.username if self.is_staff else 'Студент'
+
     def __repr__(self) -> str:
         return f"<User id={self.id} username={self.username!r} role={self.role!r}>"
 
@@ -125,11 +155,15 @@ class Post(db.Model):
         onupdate=datetime.utcnow,
     )
 
+    # Пост от имени «Аноним» (доступно студентам)
+    is_anonymous = db.Column(db.Boolean, default=False, nullable=False)
+
     comments = db.relationship(
         'Comment',
         backref='post',
         lazy=True,
         cascade='all, delete-orphan',
+        order_by='Comment.created_at',
     )
 
     # author.posts — создаётся через этот backref
@@ -177,12 +211,13 @@ class Test(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_active = db.Column(db.Boolean, default=True)
 
-    # Вопросы теста
+    # Вопросы теста (порядок = порядок добавления; от него зависят номера в подшкалах)
     questions = db.relationship(
         'Question',
         backref='test',
         lazy=True,
-        cascade='all, delete-orphan'
+        cascade='all, delete-orphan',
+        order_by='Question.id',
     )
 
     # Результаты прохождения
@@ -211,6 +246,15 @@ class Test(db.Model):
         order_by='TestScaleOption.order_index'
     )
 
+    # Подшкалы (многомерные методики, например опросник Олвеуса)
+    subscales = db.relationship(
+        'TestSubscale',
+        backref='test',
+        lazy=True,
+        cascade='all, delete-orphan',
+        order_by='TestSubscale.id',
+    )
+
 
 
 class Question(db.Model):
@@ -232,6 +276,7 @@ class Question(db.Model):
         backref='question',
         lazy=True,
         cascade='all, delete-orphan',
+        order_by='QuestionOption.id',
     )
 
     # Ответы студентов на этот вопрос
@@ -304,6 +349,7 @@ class TestResult(db.Model):
         backref='test_result',
         lazy=True,
         cascade='all, delete-orphan',
+        order_by='TestAnswer.id',
     )
 
 
@@ -320,6 +366,22 @@ class TestInterpretation(db.Model):
     # Текст интерпретации (пока только на русском;
     # при желании можно добавить text_kk по аналогии)
     text = db.Column(db.Text, nullable=False)
+
+    # Диапазон требует внимания психолога (попадает в «Требуют внимания» на панели)
+    is_alert = db.Column(db.Boolean, default=False, nullable=False)
+
+
+class TestSubscale(db.Model):
+    """
+    Подшкала многомерного теста: сумма баллов по вопросам с указанными номерами.
+    Номера — позиции вопросов в тесте (1, 2, 3, ...), формат «1,3,5-6».
+    """
+    __tablename__ = 'test_subscale'
+
+    id = db.Column(db.Integer, primary_key=True)
+    test_id = db.Column(db.Integer, db.ForeignKey('test.id'), nullable=False, index=True)
+    name = db.Column(db.String(200), nullable=False)
+    question_numbers = db.Column(db.String(500), nullable=False)
 
 
 class TestAnswer(db.Model):
@@ -352,9 +414,45 @@ class Message(db.Model):
     sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
+    # Сообщение анонимного диалога (см. AnonThread): психолог не видит, кто студент
     is_anonymous = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_read = db.Column(db.Boolean, default=False)
+
+
+class AnonThread(db.Model):
+    """
+    Анонимный диалог студента с психологом.
+
+    Психолог открывает его по случайному токену и видит только псевдоним,
+    id студента в адресах и шаблонах психолога не появляется.
+    Сообщения диалога — Message с is_anonymous=True между этой парой.
+    """
+    __tablename__ = 'anon_thread'
+
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    psychologist_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    token = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('student_id', 'psychologist_id', name='uq_anon_thread_pair'),
+    )
+
+    @property
+    def alias(self) -> str:
+        return f"Аноним #{self.token[:4].upper()}"
+
+
+class LoginAttempt(db.Model):
+    """Неудачные попытки входа — для ограничения перебора паролей."""
+    __tablename__ = 'login_attempt'
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(120), index=True)
+    ip = db.Column(db.String(64), index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
 
 
 class Article(db.Model):

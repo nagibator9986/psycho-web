@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% from '_macros.html' import avatar %}
+
+{% block title %}Поиск: {{ query }}{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-1">Поиск</h1>
+<p class="text-muted mb-4">По запросу «{{ query }}»</p>
+
+{% set total = tests|length + articles|length + posts|length + psychologists|length + students|length %}
+{% if not total %}
+  <div class="alert alert-info">Ничего не найдено. Попробуйте другой запрос.</div>
+{% endif %}
+
+{% if psychologists %}
+<div class="section-title"><i class="bi bi-person-heart"></i> Психологи</div>
+<div class="list-group mb-4">
+  {% for p in psychologists %}
+  <a href="{{ url_for('profile', username=p.username) }}" class="list-group-item list-group-item-action d-flex align-items-center gap-2">
+    {{ avatar(p, 36) }}
+    <div><div class="fw-semibold">{{ p.display_name }}</div><small class="text-muted">{{ (p.bio or 'Психолог')|truncate(80) }}</small></div>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if students %}
+<div class="section-title"><i class="bi bi-mortarboard"></i> Студенты</div>
+<div class="list-group mb-4">
+  {% for s in students %}
+  <a href="{{ url_for('student_analytics', student_id=s.id) }}" class="list-group-item list-group-item-action">
+    <span class="fw-semibold">{{ s.full_name or s.username }}</span>
+    <small class="text-muted">· {{ s.username }}{% if s.group %} · {{ s.group.name }}{% endif %}</small>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if tests %}
+<div class="section-title"><i class="bi bi-clipboard-check"></i> Тесты</div>
+<div class="list-group mb-4">
+  {% for t in tests %}
+  <a href="{{ url_for('add_questions', test_id=t.id) if is_psychologist() and t.user_id == get_current_user().id else url_for('take_test', test_id=t.id) }}"
+     class="list-group-item list-group-item-action">
+    <div class="fw-semibold">{{ t.title }}</div>
+    {% if t.description %}<small class="text-muted">{{ t.description|truncate(120) }}</small>{% endif %}
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if articles %}
+<div class="section-title"><i class="bi bi-journal-text"></i> Статьи</div>
+<div class="list-group mb-4">
+  {% for a in articles %}
+  <a href="{{ url_for('view_article', article_id=a.id) }}" class="list-group-item list-group-item-action">
+    <div class="fw-semibold">{{ a.title }}</div>
+    <small class="text-muted">{{ a.content|truncate(120) }}</small>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if posts %}
+<div class="section-title"><i class="bi bi-people"></i> Форум</div>
+<div class="list-group mb-4">
+  {% for p in posts %}
+  <a href="{{ url_for('view_post', post_id=p.id) }}" class="list-group-item list-group-item-action">
+    <div class="fw-semibold">{{ p.title }}</div>
+    <small class="text-muted">{{ 'Аноним' if p.is_anonymous else p.author.display_name }} · {{ p.created_at|ts('%d.%m.%Y') }}</small>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,90 +1,68 @@
-# admin.py — SuperAdmin (email уникален; Flask 3.x; прочный CSV-импорт)
+# admin.py — панель администратора: пользователи, группы, массовый импорт CSV
 from __future__ import annotations
 
+import base64
 import csv
 import io
 import json
-import base64
 import re
-import uuid
+import secrets
 from datetime import datetime
 from functools import wraps
-from flask_login import current_user
-from flask import (
-    Blueprint, render_template, request, redirect, url_for,
-    flash, session, current_app
-)
-from werkzeug.security import generate_password_hash
-from sqlalchemy import or_, asc, desc, case
 
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
+from flask_login import current_user
+from sqlalchemy import asc, case, desc, func, or_
+from sqlalchemy.orm import joinedload
+from werkzeug.security import generate_password_hash
+
+import security
+import services
 from extensions import db
-from models import User, Group
+from models import Group, Test, TestResult, User
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 ALLOWED_ROLES = ['student', 'psychologist', 'admin', 'superadmin']
 EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
-
-# -------------------------------------------------
-# Bootstrap superadmin (super / Azamat65)
-# -------------------------------------------------
-BOOTSTRAP_SUPERADMIN = {
-    "username": "super",
-    "email": "super@localhost",
-    "password": "Azamat65",
-}
-
-def ensure_initial_superadmin() -> None:
-    if User.query.filter_by(role='superadmin').first():
-        return
-    u = User.query.filter(
-        (User.username == BOOTSTRAP_SUPERADMIN["username"]) |
-        (User.email == BOOTSTRAP_SUPERADMIN["email"])
-    ).first()
-    password_hash = generate_password_hash(BOOTSTRAP_SUPERADMIN["password"])
-    if u:
-        u.role = 'superadmin'
-        u.password = password_hash
-    else:
-        u = User(
-            username=BOOTSTRAP_SUPERADMIN["username"],
-            email=BOOTSTRAP_SUPERADMIN["email"],
-            password=password_hash,
-            role='superadmin',
-            full_name='Super Admin',
-            created_at=datetime.utcnow()
-        )
-        db.session.add(u)
-    db.session.commit()
-    print("✅ Bootstrap superadmin: super / Azamat65")
-
-@admin_bp.before_app_request
-def _bootstrap_superadmin_once():
-    flag = "SUPERADMIN_BOOTSTRAPPED"
-    if not current_app.config.get(flag):
-        try:
-            ensure_initial_superadmin()
-        finally:
-            current_app.config[flag] = True
+USERNAME_RE = re.compile(r'[A-Za-z0-9_.\-@]{3,80}')
 
 
 # =========================
-#     ACCESS DECORATOR
+#     ACCESS
 # =========================
 def superadmin_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         if not current_user.is_authenticated:
             flash('Нужно войти в систему', 'warning')
-            return redirect(url_for('login'))
-
+            return redirect(url_for('login', next=request.path))
         if current_user.role not in ('admin', 'superadmin'):
-            flash('Доступ запрещён', 'danger')
-            return redirect(url_for('index'))
-
+            abort(403)
         return f(*args, **kwargs)
     return wrapper
 
+
+def assignable_roles() -> list[str]:
+    """Админ управляет студентами и психологами; суперадмин — всеми."""
+    if current_user.role == 'superadmin':
+        return ALLOWED_ROLES
+    return ['student', 'psychologist']
+
+
+def can_manage(user: User) -> bool:
+    return current_user.role == 'superadmin' or user.role in ('student', 'psychologist')
+
+
+def _back():
+    target = request.form.get('next')
+    if security.is_safe_next(target):
+        return redirect(target)
+    return redirect(url_for('admin.superadmin_home'))
+
+
+def _new_password() -> str:
+    return secrets.token_urlsafe(9)
 
 
 # =========================
@@ -98,26 +76,25 @@ def ensure_group(name: str, course: int | None = None):
         g = Group(name=name, course=course or 1)
         db.session.add(g)
         db.session.flush()
-    else:
-        if course and course > 0 and g.course != course:
-            g.course = course
-            db.session.flush()
+    elif course and course > 0 and g.course != course:
+        g.course = course
+        db.session.flush()
     return g
 
+
 def _decode_text(raw_bytes: bytes) -> tuple[str, str]:
-    tried = []
-    for enc in ('utf-8-sig', 'utf-8', 'cp1251', 'windows-1251'):
+    for enc in ('utf-8-sig', 'cp1251'):
         try:
             return raw_bytes.decode(enc), enc
         except UnicodeDecodeError:
-            tried.append(enc)
-    raise UnicodeDecodeError("csv", b"", 0, 0, f"Не удалось декодировать CSV. Пробовали: {', '.join(tried)}")
+            continue
+    raise UnicodeDecodeError('csv', b'', 0, 0, 'Не удалось прочитать CSV: сохраните его в UTF-8')
+
 
 def _detect_delimiter(text: str) -> str:
     sample = '\n'.join(text.splitlines()[:10])
     try:
-        dialect = csv.Sniffer().sniff(sample, delimiters=[',', ';', '\t'])
-        return dialect.delimiter
+        return csv.Sniffer().sniff(sample, delimiters=[',', ';', '\t']).delimiter
     except Exception:
         header = text.splitlines()[0] if text else ''
         if header.count(';') > header.count(','):
@@ -126,14 +103,17 @@ def _detect_delimiter(text: str) -> str:
             return '\t'
         return ','
 
+
 def _normalize_header(name: str) -> str:
     n = (name or '').strip().lower()
     mapping = {
         'fio': 'full_name', 'full name': 'full_name', 'фио': 'full_name',
-        'iin': 'username', 'логин': 'username', 'user': 'username',
-        'group_name': 'group', 'группа': 'group'
+        'iin': 'username', 'иин': 'username', 'логин': 'username', 'user': 'username',
+        'group_name': 'group', 'группа': 'group', 'курс': 'course', 'роль': 'role',
+        'пароль': 'password', 'почта': 'email',
     }
     return mapping.get(n, n)
+
 
 def _safe_int(s, default=1) -> int:
     try:
@@ -142,24 +122,35 @@ def _safe_int(s, default=1) -> int:
     except Exception:
         return default
 
-def _build_error_csv(rows: list[dict]) -> str:
+
+def _build_csv(rows: list[dict], fields: list[str]) -> str:
     out = io.StringIO()
-    writer = csv.DictWriter(out, fieldnames=['line', 'username', 'email', 'reason'], delimiter=';')
+    writer = csv.DictWriter(out, fieldnames=fields, delimiter=';', extrasaction='ignore')
     writer.writeheader()
     for r in rows:
-        writer.writerow({
-            'line': r.get('line'),
-            'username': r.get('username', ''),
-            'email': r.get('email', ''),
-            'reason': r.get('reason', '')
-        })
-    out.seek(0)
-    return out.getvalue()
+        writer.writerow({k: services.csv_safe(v) for k, v in r.items()})
+    return '﻿' + out.getvalue()
+
+
+def _build_error_csv(rows: list[dict]) -> str:
+    return _build_csv(rows, ['line', 'username', 'email', 'reason'])
 
 
 # =========================
 #        SUPERADMIN UI
 # =========================
+SORTS = {
+    'date_asc': [asc(User.created_at)],
+    'date_desc': [desc(User.created_at)],
+    'name_asc': [asc(User.full_name), asc(User.username)],
+    'name_desc': [desc(User.full_name), desc(User.username)],
+    'group_asc': [asc(case((Group.name.is_(None), 1), else_=0)), asc(Group.name)],
+    'group_desc': [asc(case((Group.name.is_(None), 1), else_=0)), desc(Group.name)],
+    'role_asc': [asc(User.role)],
+    'role_desc': [desc(User.role)],
+}
+
+
 @admin_bp.route('/', methods=['GET'])
 @superadmin_required
 def superadmin_home():
@@ -167,59 +158,46 @@ def superadmin_home():
     role = request.args.get('role', '').strip()
     group = request.args.get('group', '').strip()
     sort = request.args.get('sort', 'date_desc')
-    page = max(int(request.args.get('page', 1) or 1), 1)
-    per_page = min(max(int(request.args.get('per_page', 20) or 20), 5), 100)
+    if sort not in SORTS:
+        sort = 'date_desc'
+    page = max(request.args.get('page', 1, type=int) or 1, 1)
+    per_page = min(max(request.args.get('per_page', 20, type=int) or 20, 5), 100)
 
-    query = User.query
+    # одна внешняя связь с группами — раньше фильтр и сортировка по группе
+    # присоединяли таблицу дважды и запрос падал
+    query = User.query.outerjoin(Group, Group.id == User.group_id).options(joinedload(User.group))
     if q:
-        like = f"%{q}%"
-        query = query.filter(or_(User.username.ilike(like),
-                                 User.email.ilike(like),
-                                 User.full_name.ilike(like)))
+        like = f'%{q}%'
+        query = query.filter(or_(User.username.ilike(like), User.email.ilike(like), User.full_name.ilike(like)))
     if role:
         query = query.filter(User.role == role)
     if group:
-        query = query.join(Group, isouter=True).filter(Group.name == group)
-
-    if sort == 'date_asc':
-        query = query.order_by(asc(User.created_at))
-    elif sort == 'name_asc':
-        query = query.order_by(asc(User.full_name), asc(User.username))
-    elif sort == 'name_desc':
-        query = query.order_by(desc(User.full_name), desc(User.username))
-    elif sort == 'group_asc':
-        query = query.join(Group, isouter=True).order_by(
-            asc(case((Group.name.is_(None), 1), else_=0)), asc(Group.name)
-        )
-    elif sort == 'group_desc':
-        query = query.join(Group, isouter=True).order_by(
-            asc(case((Group.name.is_(None), 1), else_=0)), desc(Group.name)
-        )
-    elif sort == 'role_asc':
-        query = query.order_by(asc(User.role))
-    elif sort == 'role_desc':
-        query = query.order_by(desc(User.role))
-    else:
-        query = query.order_by(desc(User.created_at))
+        query = query.filter(Group.name == group)
 
     total = query.count()
-    users = query.limit(per_page).offset((page - 1) * per_page).all()
+    users = query.order_by(*SORTS[sort]).limit(per_page).offset((page - 1) * per_page).all()
+    pages = max((total + per_page - 1) // per_page, 1)
 
-    roles = ALLOWED_ROLES
-    groups = [g.name for g in Group.query.order_by(asc(Group.name)).all()]
+    stats = dict(db.session.query(User.role, func.count(User.id)).group_by(User.role).all())
+    stats['results'] = TestResult.query.count()
+    stats['tests'] = Test.query.count()
 
     return render_template(
         'superadmin.html',
         users=users,
         total=total,
         page=page,
+        pages=pages,
         per_page=per_page,
         q=q,
         role=role,
         group=group,
         sort=sort,
-        roles=roles,
-        groups=groups
+        roles=ALLOWED_ROLES,
+        assignable=assignable_roles(),
+        groups=[g.name for g in Group.query.order_by(asc(Group.name)).all()],
+        stats=stats,
+        can_manage=can_manage,
     )
 
 
@@ -238,23 +216,27 @@ def create_user():
     course = request.form.get('course', type=int)
 
     if not username or not email:
-        flash('Нужно указать username и email', 'warning')
-        return redirect(url_for('admin.superadmin_home'))
+        flash('Нужно указать логин и email', 'warning')
+        return _back()
+    if not USERNAME_RE.fullmatch(username):
+        flash('Логин: 3–80 символов, латиница, цифры, точка, дефис, подчёркивание', 'danger')
+        return _back()
     if not EMAIL_RE.match(email):
         flash('Некорректный email', 'danger')
-        return redirect(url_for('admin.superadmin_home'))
-    if role not in ALLOWED_ROLES:
-        flash('Неверная роль', 'danger')
-        return redirect(url_for('admin.superadmin_home'))
+        return _back()
+    if role not in assignable_roles():
+        flash('Эту роль вы назначить не можете', 'danger')
+        return _back()
     if User.query.filter_by(username=username).first():
-        flash('Имя пользователя занято', 'danger')
-        return redirect(url_for('admin.superadmin_home'))
+        flash('Логин занят', 'danger')
+        return _back()
     if User.query.filter_by(email=email).first():
         flash('Email уже используется другим аккаунтом', 'danger')
-        return redirect(url_for('admin.superadmin_home'))
+        return _back()
 
-    if not password:
-        password = uuid.uuid4().hex[:10]
+    generated = not password
+    if generated:
+        password = _new_password()
 
     grp = ensure_group(group_name, course)
     u = User(
@@ -264,19 +246,27 @@ def create_user():
         role=role,
         full_name=full_name or None,
         group_id=grp.id if grp else None,
-        created_at=datetime.utcnow()
+        created_at=datetime.utcnow(),
+        # пароль знает администратор — пользователь сменит его при первом входе
+        must_change_password=True,
     )
     db.session.add(u)
     db.session.commit()
 
-    flash(f'Пользователь {username} создан', 'success')
-    return redirect(url_for('admin.superadmin_home'))
+    if generated:
+        flash(f'Пользователь {username} создан. Временный пароль: {password} — '
+              'передайте его пользователю, при входе он задаст свой.', 'success')
+    else:
+        flash(f'Пользователь {username} создан', 'success')
+    return _back()
 
 
 @admin_bp.route('/users/<int:user_id>/update', methods=['POST'])
 @superadmin_required
 def update_user(user_id):
-    u = User.query.get_or_404(user_id)
+    u = db.session.get(User, user_id) or abort(404)
+    if not can_manage(u) and u.id != current_user.id:
+        abort(403)
 
     new_role = (request.form.get('role') or u.role).strip()
     new_full = (request.form.get('full_name') or u.full_name or '').strip()
@@ -285,16 +275,18 @@ def update_user(user_id):
     course = request.form.get('course', type=int)
     new_password = (request.form.get('password') or '').strip()
 
-    if new_role not in ALLOWED_ROLES:
-        flash('Неверная роль', 'danger')
-        return redirect(url_for('admin.superadmin_home'))
+    if new_role != u.role and new_role not in assignable_roles():
+        flash('Эту роль вы назначить не можете', 'danger')
+        return _back()
+    if u.id == current_user.id and new_role != u.role:
+        flash('Свою роль поменять нельзя', 'warning')
+        return _back()
     if not EMAIL_RE.match(new_email):
         flash('Некорректный email', 'danger')
-        return redirect(url_for('admin.superadmin_home'))
-    if new_email != u.email:
-        if User.query.filter(User.email == new_email, User.id != u.id).first():
-            flash('Этот email уже используется другим аккаунтом', 'danger')
-            return redirect(url_for('admin.superadmin_home'))
+        return _back()
+    if new_email != u.email and User.query.filter(User.email == new_email, User.id != u.id).first():
+        flash('Этот email уже используется другим аккаунтом', 'danger')
+        return _back()
 
     u.role = new_role
     u.full_name = new_full or None
@@ -304,24 +296,59 @@ def update_user(user_id):
     u.group_id = grp.id if grp else None
 
     if new_password:
+        problem = security.password_problem(new_password)
+        if problem:
+            db.session.rollback()
+            flash(problem, 'danger')
+            return _back()
         u.password = generate_password_hash(new_password)
+        u.must_change_password = u.id != current_user.id
 
     db.session.commit()
     flash('Профиль обновлён', 'success')
-    return redirect(url_for('admin.superadmin_home'))
+    return _back()
+
+
+@admin_bp.route('/users/<int:user_id>/reset_password', methods=['POST'])
+@superadmin_required
+def reset_password(user_id):
+    u = db.session.get(User, user_id) or abort(404)
+    if not can_manage(u) or u.id == current_user.id:
+        abort(403)
+    password = _new_password()
+    u.password = generate_password_hash(password)
+    u.must_change_password = True
+    db.session.commit()
+    flash(f'Временный пароль для {u.username}: {password} — при входе пользователь задаст свой', 'success')
+    return _back()
+
+
+def _delete_one(u: User) -> str | None:
+    """Удаляет пользователя с данными; возвращает текст ошибки или None."""
+    if u.id == current_user.id:
+        return 'Нельзя удалить собственный аккаунт'
+    if not can_manage(u):
+        return f'Недостаточно прав, чтобы удалить {u.username}'
+    blocker = services.user_delete_blocker(u)
+    if blocker:
+        return blocker
+    pic = u.profile_pic
+    services.delete_user_with_data(u)
+    security.remove_upload(current_app.config['UPLOAD_FOLDER'], pic)
+    return None
 
 
 @admin_bp.route('/users/<int:user_id>/delete', methods=['POST'])
 @superadmin_required
 def delete_user(user_id):
-    u = User.query.get_or_404(user_id)
-    if u.id == session.get('user_id'):
-        flash('Нельзя удалить собственный аккаунт супер-админа', 'warning')
-        return redirect(url_for('admin.superadmin_home'))
-    db.session.delete(u)
+    u = db.session.get(User, user_id) or abort(404)
+    error = _delete_one(u)
+    if error:
+        flash(error, 'warning')
+        return _back()
     db.session.commit()
-    flash('Пользователь удалён', 'success')
-    return redirect(url_for('admin.superadmin_home'))
+    flash('Пользователь и его данные удалены', 'success')
+    return _back()
 
 
 @admin_bp.route('/users/bulk_delete', methods=['POST'])
@@ -330,23 +357,90 @@ def bulk_delete():
     ids = request.form.getlist('user_ids[]')
     if not ids:
         flash('Не выбраны пользователи', 'warning')
-        return redirect(url_for('admin.superadmin_home'))
+        return _back()
 
-    sid = str(session.get('user_id'))  # защита от самоудаления
-    ids = [i for i in ids if i != sid]
-
-    deleted = 0
+    deleted, problems = 0, []
     for s in ids:
         try:
-            u = User.query.get(int(s))
-            if u:
-                db.session.delete(u)
-                deleted += 1
+            u = db.session.get(User, int(s))
         except ValueError:
             continue
+        if u is None:
+            continue
+        error = _delete_one(u)
+        if error:
+            problems.append(error)
+        else:
+            deleted += 1
     db.session.commit()
     flash(f'Удалено пользователей: {deleted}', 'success')
-    return redirect(url_for('admin.superadmin_home'))
+    for p in problems[:5]:
+        flash(p, 'warning')
+    return _back()
+
+
+# =========================
+#     GROUPS
+# =========================
+@admin_bp.route('/groups', methods=['GET'])
+@superadmin_required
+def groups():
+    rows = (
+        db.session.query(Group, func.count(User.id))
+        .outerjoin(User, User.group_id == Group.id)
+        .group_by(Group.id)
+        .order_by(Group.course.asc(), Group.name.asc())
+        .all()
+    )
+    return render_template('admin_groups.html', rows=rows)
+
+
+@admin_bp.route('/groups/create', methods=['POST'])
+@superadmin_required
+def group_create():
+    name = (request.form.get('name') or '').strip()[:100]
+    course = _safe_int(request.form.get('course'), 1)
+    if not name:
+        flash('Укажите название группы', 'warning')
+    elif Group.query.filter_by(name=name).first():
+        flash('Такая группа уже есть', 'warning')
+    else:
+        db.session.add(Group(name=name, course=course))
+        db.session.commit()
+        flash(f'Группа {name} создана', 'success')
+    return redirect(url_for('admin.groups'))
+
+
+@admin_bp.route('/groups/<int:group_id>/update', methods=['POST'])
+@superadmin_required
+def group_update(group_id):
+    g = db.session.get(Group, group_id) or abort(404)
+    name = (request.form.get('name') or '').strip()[:100]
+    course = _safe_int(request.form.get('course'), g.course)
+    if not name:
+        flash('Название не может быть пустым', 'warning')
+        return redirect(url_for('admin.groups'))
+    if name != g.name and Group.query.filter_by(name=name).first():
+        flash('Группа с таким названием уже есть', 'warning')
+        return redirect(url_for('admin.groups'))
+    g.name, g.course = name, course
+    db.session.commit()
+    flash('Группа обновлена', 'success')
+    return redirect(url_for('admin.groups'))
+
+
+@admin_bp.route('/groups/<int:group_id>/delete', methods=['POST'])
+@superadmin_required
+def group_delete(group_id):
+    g = db.session.get(Group, group_id) or abort(404)
+    members = User.query.filter_by(group_id=g.id).count()
+    if members:
+        flash(f'В группе {members} пользователей — сначала переведите их в другую группу', 'warning')
+        return redirect(url_for('admin.groups'))
+    db.session.delete(g)
+    db.session.commit()
+    flash('Группа удалена', 'success')
+    return redirect(url_for('admin.groups'))
 
 
 # =========================
@@ -357,133 +451,134 @@ def bulk_delete():
 def bulk_upload():
     """
     Шаг 1: парсим CSV и строим план (create/update/skip) + собираем ошибки.
-    Шаг 2: confirm=1 применяем план транзакционно (no_autoflush + commit/rollback).
-    Правила: username и email — уникальны в БД.
+    Шаг 2: confirm=1 применяем план транзакционно.
+    Если пароль в файле не указан, генерируется случайный: список логинов и
+    паролей выдаётся файлом после импорта. Раньше пароль был «ИИН + abc» —
+    его легко угадать, зная ИИН.
     """
     mode = (request.form.get('mode') or 'create_only').strip()
     if mode not in ('create_only', 'upsert'):
         mode = 'create_only'
+    allowed = assignable_roles()
 
     # ===== ШАГ 2: подтверждение плана =====
     if request.form.get('confirm') == '1':
-        plan_b64 = request.form.get('plan_b64', '')
-        if not plan_b64:
-            flash('План импорта отсутствует. Повторите загрузку CSV.', 'danger')
-            return redirect(url_for('admin.superadmin_home'))
         try:
-            plan_json = base64.b64decode(plan_b64.encode('utf-8')).decode('utf-8')
-            plan = json.loads(plan_json)
+            plan = json.loads(base64.b64decode(request.form.get('plan_b64', '').encode()).decode('utf-8'))
         except Exception:
             flash('План импорта повреждён. Повторите загрузку CSV.', 'danger')
             return redirect(url_for('admin.superadmin_home'))
 
         created = updated = skipped = 0
-        errors = []
+        errors, credentials = [], []
+        # какие колонки были в файле: отсутствующие при обновлении не трогаем
+        columns = set(plan.get('columns') or [])
+
+        def fail(item, username, email, reason):
+            errors.append({'line': item.get('line', '-'), 'username': username, 'email': email, 'reason': reason})
 
         try:
             with db.session.no_autoflush:
                 for item in plan.get('items', []):
                     action = item.get('action')
-                    if action not in ('create', 'update', 'skip', 'error'):
-                        continue
-                    if action in ('skip', 'error'):
+                    if action not in ('create', 'update'):
                         skipped += 1
                         continue
 
-                    d = item['data']
-                    username = d['username']
-                    email    = (d['email'] or '').lower()
-                    fullnm   = d.get('full_name')
-                    role     = d.get('role') or 'student'
-                    groupnm  = d.get('group')
-                    course   = _safe_int(d.get('course'), 1)
-                    password = d.get('password') or f'{username}abc'
+                    d = item.get('data') or {}
+                    username = str(d.get('username') or '')
+                    email = str(d.get('email') or '').lower()
+                    fullnm = d.get('full_name')
+                    role = d.get('role') or ''
+                    # план пришёл из формы — проверяем данные ещё раз
+                    if not USERNAME_RE.fullmatch(username) or not EMAIL_RE.match(email):
+                        fail(item, username, email, 'Некорректный логин или email')
+                        skipped += 1
+                        continue
+                    if role and role not in allowed:
+                        fail(item, username, email, f'Роль «{role}» вам назначать нельзя')
+                        skipped += 1
+                        continue
+                    groupnm = d.get('group') or ''
+                    # нет курса в файле — курс существующей группы не меняем
+                    course = _safe_int(d.get('course'), 0) or None
+                    given_password = d.get('password') or ''
 
                     grp = ensure_group(groupnm, course) if groupnm else None
+                    user = User.query.filter_by(username=username).first()
 
-                    if action == 'create':
-                        # финальная проверка уникальности перед INSERT
-                        if User.query.filter_by(username=username).first():
-                            errors.append({'line': item.get('line', '-'), 'username': username, 'email': email,
-                                           'reason': 'Создание отменено: username уже существует'})
+                    if user is not None and user.id == current_user.id:
+                        fail(item, username, email, 'Свой аккаунт через импорт не изменяется')
+                        skipped += 1
+                        continue
+
+                    if action == 'update' and mode == 'upsert' and user is not None:
+                        if not can_manage(user):
+                            fail(item, username, email, 'Недостаточно прав для изменения этого аккаунта')
                             skipped += 1
                             continue
-                        if User.query.filter_by(email=email).first():
-                            errors.append({'line': item.get('line', '-'), 'username': username, 'email': email,
-                                           'reason': 'Создание отменено: email уже существует'})
-                            skipped += 1
-                            continue
-
-                        user = User(
-                            username=username,
-                            email=email,
-                            password=generate_password_hash(password),
-                            role=role if role in ALLOWED_ROLES else 'student',
-                            full_name=fullnm or None,
-                            group_id=grp.id if grp else None,
-                            created_at=datetime.utcnow()
-                        )
-                        db.session.add(user)
-                        created += 1
-
-                    elif action == 'update' and mode == 'upsert':
-                        user = User.query.filter_by(username=username).first()
-                        if not user:
-                            # если в промежутке удалён — пробуем создать, но email должен быть свободен
-                            if User.query.filter_by(email=email).first():
-                                errors.append({'line': item.get('line', '-'), 'username': username, 'email': email,
-                                               'reason': 'Создание вместо update невозможно: email уже существует'})
+                        if email and email != user.email:
+                            if User.query.filter(User.email == email, User.id != user.id).first():
+                                fail(item, username, email, 'Email занят другим пользователем')
                                 skipped += 1
                                 continue
-                            user = User(
-                                username=username,
-                                email=email,
-                                password=generate_password_hash(password),
-                                role=role if role in ALLOWED_ROLES else 'student',
-                                full_name=fullnm or None,
-                                group_id=grp.id if grp else None,
-                                created_at=datetime.utcnow()
-                            )
-                            db.session.add(user)
-                            created += 1
-                        else:
-                            # если меняем email — он должен быть свободен у других
-                            if email and email != user.email:
-                                if User.query.filter(User.email == email, User.id != user.id).first():
-                                    errors.append({'line': item.get('line', '-'), 'username': username, 'email': email,
-                                                   'reason': 'Update отменён: email занят другим пользователем'})
-                                    skipped += 1
-                                    continue
-                                user.email = email
+                            user.email = email
+                        if fullnm:
+                            user.full_name = fullnm
+                        if 'role' in columns and role:
+                            user.role = role
+                        if 'group' in columns and grp is not None:
+                            user.group_id = grp.id
+                        if given_password:
+                            user.password = generate_password_hash(given_password)
+                            user.must_change_password = True
+                        updated += 1
+                        continue
 
-                            if fullnm:
-                                user.full_name = fullnm
-                            if role in ALLOWED_ROLES:
-                                user.role = role
-                            user.group_id = grp.id if grp else None
-                            if d.get('password'):
-                                user.password = generate_password_hash(password)
-                            updated += 1
+                    if user is not None:
+                        fail(item, username, email, 'Логин уже существует')
+                        skipped += 1
+                        continue
+                    if User.query.filter_by(email=email).first():
+                        fail(item, username, email, 'Email уже существует')
+                        skipped += 1
+                        continue
+
+                    password = given_password or _new_password()
+                    db.session.add(User(
+                        username=username,
+                        email=email,
+                        password=generate_password_hash(password),
+                        role=role or 'student',
+                        full_name=fullnm or None,
+                        group_id=grp.id if grp else None,
+                        created_at=datetime.utcnow(),
+                        must_change_password=True,
+                    ))
+                    if not given_password:
+                        credentials.append({
+                            'username': username, 'password': password, 'full_name': fullnm or '',
+                            'group': groupnm or '',
+                        })
+                    created += 1
 
             db.session.commit()
 
         except Exception as e:
             db.session.rollback()
-            errors.append({'line': '-', 'username': '-', 'email': '-', 'reason': f'DB error: {e}'})
-            error_csv = _build_error_csv(errors)
+            errors.append({'line': '-', 'username': '-', 'email': '-', 'reason': f'Ошибка БД: {e}'})
             return render_template(
-                'bulk_upload_result.html',
-                mode=mode,
-                created=0, updated=0, skipped=skipped,
-                errors=errors, error_csv=error_csv
+                'bulk_upload_result.html', mode=mode, created=0, updated=0, skipped=skipped,
+                errors=errors, error_csv=_build_error_csv(errors), credentials_csv='', credentials_count=0,
             )
 
-        error_csv = _build_error_csv(errors) if errors else ''
         return render_template(
             'bulk_upload_result.html',
-            mode=mode,
-            created=created, updated=updated, skipped=skipped,
-            errors=errors, error_csv=error_csv
+            mode=mode, created=created, updated=updated, skipped=skipped,
+            errors=errors, error_csv=_build_error_csv(errors) if errors else '',
+            credentials_csv=_build_csv(credentials, ['username', 'password', 'full_name', 'group'])
+            if credentials else '',
+            credentials_count=len(credentials),
         )
 
     # ===== ШАГ 1: парсинг CSV и построение плана =====
@@ -493,9 +588,9 @@ def bulk_upload():
         return redirect(url_for('admin.superadmin_home'))
 
     try:
-        text, enc = _decode_text(file.read())
+        text, _enc = _decode_text(file.read())
     except UnicodeDecodeError as e:
-        flash(str(e), 'danger')
+        flash(str(e.reason), 'danger')
         return redirect(url_for('admin.superadmin_home'))
 
     delimiter = _detect_delimiter(text)
@@ -504,116 +599,75 @@ def bulk_upload():
     if not reader.fieldnames:
         flash('В CSV нет заголовка (первой строки).', 'danger')
         return redirect(url_for('admin.superadmin_home'))
-    normalized_fieldnames = [_normalize_header(x) for x in reader.fieldnames]
-    header_map = {src: norm for src, norm in zip(reader.fieldnames, normalized_fieldnames)}
+    header_map = {src: _normalize_header(src) for src in reader.fieldnames}
 
-    need_min = {'username', 'email'}
-    have = set(header_map.values())
-    if not need_min.issubset(have):
+    if not {'username', 'email'}.issubset(set(header_map.values())):
         flash('Нужны как минимум колонки: username, email (остальные опциональны).', 'danger')
         return redirect(url_for('admin.superadmin_home'))
 
     rows = []
     for i, raw_row in enumerate(reader, start=2):
-        row = {}
-        for src_key, val in raw_row.items():
-            norm_key = header_map.get(src_key, src_key)
-            row[norm_key] = (val or '').strip()
-        rows.append((i, row))
+        row = {header_map.get(k, k): (v or '').strip() for k, v in raw_row.items() if k is not None}
+        if any(row.values()):
+            rows.append((i, row))
 
-    # Предзагрузка существующих username/email для быстрых проверок
-    existing_usernames = set(x[0] for x in db.session.query(User.username).all())
-    existing_emails = set(x[0] for x in db.session.query(User.email).all())
+    existing_usernames = {x[0] for x in db.session.query(User.username).all()}
+    existing_emails = {x[0] for x in db.session.query(User.email).all()}
 
     seen_usernames, seen_emails = set(), set()
     plan_items, errors = [], []
     created = updated = skipped = 0
 
     for lineno, r in rows:
-        username = (r.get('username') or '')
+        username = r.get('username') or ''
         email = (r.get('email') or '').lower()
-        fullnm = r.get('full_name') or r.get('fio') or ''
         role = (r.get('role') or 'student').strip()
-        groupnm = r.get('group') or r.get('group_name') or ''
-        course = _safe_int(r.get('course'), 1)
-        password = r.get('password') or ''
 
-        # базовая валидация
+        def err(reason):
+            errors.append({'line': lineno, 'username': username, 'email': email, 'reason': reason})
+
         if not username:
-            errors.append({'line': lineno, 'username': '', 'email': email, 'reason': 'Пустой username'})
-            skipped += 1
-            continue
-        if not email or not EMAIL_RE.match(email):
-            errors.append({'line': lineno, 'username': username, 'email': email, 'reason': 'Некорректный email'})
-            skipped += 1
-            continue
-        if role and role not in ALLOWED_ROLES:
-            errors.append({'line': lineno, 'username': username, 'email': email, 'reason': f'Неизвестная роль "{role}"'})
-            skipped += 1
-            continue
-
-        # дубликаты в файле
-        if username in seen_usernames:
-            errors.append({'line': lineno, 'username': username, 'email': email, 'reason': 'Дубликат username в файле'})
-            skipped += 1
-            continue
-        if email in seen_emails:
-            errors.append({'line': lineno, 'username': username, 'email': email, 'reason': 'Дубликат email в файле'})
-            skipped += 1
-            continue
-        seen_usernames.add(username)
-        seen_emails.add(email)
-
-        # существование в БД (учитывая уникальный email)
-        username_exists = username in existing_usernames
-        email_exists = email in existing_emails
-
-        if username_exists:
-            if mode == 'upsert':
-                plan_items.append({
-                    'line': lineno,
-                    'action': 'update',
-                    'data': {
-                        'username': username, 'email': email, 'full_name': fullnm,
-                        'role': role or 'student', 'group': groupnm, 'course': course,
-                        'password': password
-                    }
-                })
-                updated += 1
-            else:
-                plan_items.append({
-                    'line': lineno,
-                    'action': 'skip',
-                    'reason': 'Уже существует (режим create_only, совпал username)',
-                    'data': {'username': username, 'email': email}
-                })
-                skipped += 1
+            err('Пустой username')
+        elif not USERNAME_RE.fullmatch(username):
+            err('Недопустимые символы в username')
+        elif not email or not EMAIL_RE.match(email):
+            err('Некорректный email')
+        elif role not in ALLOWED_ROLES:
+            err(f'Неизвестная роль «{role}»')
+        elif role not in allowed:
+            err(f'Роль «{role}» вам назначать нельзя')
+        elif username in seen_usernames:
+            err('Дубликат username в файле')
+        elif email in seen_emails:
+            err('Дубликат email в файле')
         else:
-            if email_exists:
-                # создать нельзя из-за уникального email — фиксируем ошибку
-                errors.append({'line': lineno, 'username': username, 'email': email, 'reason': 'Email уже существует в БД'})
-                skipped += 1
-                plan_items.append({
-                    'line': lineno,
-                    'action': 'error',
-                    'reason': 'Email уже существует в БД',
-                    'data': {'username': username, 'email': email}
-                })
+            seen_usernames.add(username)
+            seen_emails.add(email)
+            data = {
+                'username': username, 'email': email, 'full_name': r.get('full_name') or '',
+                'role': (r.get('role') or '').strip(), 'group': r.get('group') or '',
+                'course': _safe_int(r.get('course'), 0) or '',
+                'password': r.get('password') or '',
+            }
+            if username in existing_usernames:
+                if mode == 'upsert':
+                    plan_items.append({'line': lineno, 'action': 'update', 'data': data})
+                    updated += 1
+                else:
+                    plan_items.append({'line': lineno, 'action': 'skip', 'data': data})
+                    skipped += 1
+            elif email in existing_emails:
+                err('Email уже существует в БД')
             else:
-                plan_items.append({
-                    'line': lineno,
-                    'action': 'create',
-                    'data': {
-                        'username': username, 'email': email, 'full_name': fullnm,
-                        'role': role or 'student', 'group': groupnm, 'course': course,
-                        'password': password
-                    }
-                })
+                plan_items.append({'line': lineno, 'action': 'create', 'data': data})
                 created += 1
+            continue
+        skipped += 1
 
-    error_csv = _build_error_csv(errors) if errors else ''
-    plan_payload = {'mode': mode, 'items': plan_items}
-    plan_b64 = base64.b64encode(json.dumps(plan_payload, ensure_ascii=False).encode('utf-8')).decode('utf-8')
+    plan_b64 = base64.b64encode(
+        json.dumps({'mode': mode, 'columns': sorted(set(header_map.values())), 'items': plan_items},
+                   ensure_ascii=False).encode('utf-8')
+    ).decode('utf-8')
 
     return render_template(
         'bulk_upload_preview.html',
@@ -621,29 +675,27 @@ def bulk_upload():
         delimiter=delimiter,
         created=created, updated=updated, skipped=skipped,
         errors=errors,
-        error_csv=error_csv,
+        error_csv=_build_error_csv(errors) if errors else '',
         plan_b64=plan_b64,
-        sample_items=plan_items[:50]
+        sample_items=plan_items[:50],
     )
 
 
 # =========================
 #     QUICK ROLE CHANGE
 # =========================
-@admin_bp.route(
-    '/users/<int:user_id>/role',
-    methods=['POST'],
-    endpoint='change_role'  # Явное имя endpoint для url_for('admin.change_role', user_id=...)
-)
+@admin_bp.route('/users/<int:user_id>/role', methods=['POST'], endpoint='change_role')
 @superadmin_required
 def change_role(user_id):
-    """Смена роли из списка на странице."""
     role = (request.form.get('role') or '').strip()
-    if role not in ALLOWED_ROLES:
-        flash('Неверная роль', 'danger')
-        return redirect(url_for('admin.superadmin_home'))
-    u = User.query.get_or_404(user_id)
+    u = db.session.get(User, user_id) or abort(404)
+    if role not in assignable_roles() or not can_manage(u):
+        flash('Эту роль вы назначить не можете', 'danger')
+        return _back()
+    if u.id == current_user.id:
+        flash('Свою роль поменять нельзя', 'warning')
+        return _back()
     u.role = role
     db.session.commit()
-    flash('Роль обновлена', 'success')
-    return redirect(url_for('admin.superadmin_home'))
+    flash(f'Роль {u.username}: {role}', 'success')
+    return _back()

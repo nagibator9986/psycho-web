@@ -1,38 +1,48 @@
 {% extends "base.html" %}
+{% from '_macros.html' import empty %}
 
-{% block title %}Тесты для студентов{% endblock %}
+{% block title %}Тесты{% endblock %}
 
 {% block content %}
-<div class="container my-4">
-    <h1 class="mb-4">Доступные тесты</h1>
+<h1 class="h3 mb-2">Психологические тесты</h1>
+<p class="text-muted mb-4">
+    Отвечайте честно — правильных и неправильных ответов нет. Результаты видит только психолог.
+</p>
 
-    {% if tests %}
-        <div class="row">
-            {% for test in tests %}
-            <div class="col-md-4 mb-4">
-                <div class="card h-100 shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title">{{ test.title }}</h5>
-                        <p class="card-text text-muted">
-                            Создан: {{ test.created_at.strftime('%d.%m.%Y') }}<br>
-                            Автор: {{ test.creator.full_name or test.creator.username }}
-                        </p>
-                    </div>
-                    <div class="card-footer bg-transparent border-0">
-                        {% if test.id in completed_test_ids %}
-                            <span class="text-success">Пройден</span>
-                        {% else %}
-                            <a href="{{ url_for('take_test', test_id=test.id) }}" class="btn btn-primary btn-sm">Пройти тест</a>
-                        {% endif %}
-                    </div>
+{% if not is_student() %}
+    <div class="alert alert-info">Вы видите список как студент. Проходить тесты могут только студенты — для вас открывается предпросмотр.</div>
+{% endif %}
+
+{% if tests %}
+    <div class="row g-4">
+        {% for test in tests %}
+        {% set done = completed.get(test.id) %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">{{ test.title }}</h5>
+                    {% if test.description %}
+                        <p class="card-text text-muted small">{{ test.description|truncate(140) }}</p>
+                    {% endif %}
+                    <p class="card-text small text-muted mb-0">
+                        {{ test.questions|length }} вопросов
+                        {% if test.title_kk or test.description_kk %} · RU / KZ{% endif %}
+                    </p>
+                </div>
+                <div class="card-footer bg-transparent border-0 pb-3">
+                    {% if done %}
+                        <span class="text-success"><i class="bi bi-check2-circle"></i> Пройден {{ done.created_at|ts('%d.%m.%Y') }}</span>
+                    {% else %}
+                        <a href="{{ url_for('take_test', test_id=test.id) }}" class="btn btn-primary btn-sm">
+                            {{ 'Пройти тест' if is_student() else 'Предпросмотр' }}
+                        </a>
+                    {% endif %}
                 </div>
             </div>
-            {% endfor %}
         </div>
-    {% else %}
-        <div class="alert alert-info text-center">
-            Пока нет доступных тестов.
-        </div>
-    {% endif %}
-</div>
+        {% endfor %}
+    </div>
+{% else %}
+    {{ empty('Пока нет доступных тестов', 'clipboard') }}
+{% endif %}
 {% endblock %}
