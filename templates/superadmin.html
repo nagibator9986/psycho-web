@@ -1,22 +1,19 @@
 {% extends "base.html" %}
+{% from '_macros.html' import page_header, stat %}
 
 {% block title %}Администрирование{% endblock %}
 
 {% block content %}
 {% set me = get_current_user() %}
 {% set here = request.full_path %}
-<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-  <h1 class="h3 mb-0">Администрирование</h1>
-  <span class="text-muted small">{{ ROLE_NAMES.get(me.role) }} · {{ me.username }}</span>
-</div>
-{% include '_admin_nav.html' %}
+{{ page_header('Пользователи', ROLE_NAMES.get(me.role) ~ ' · ' ~ me.username) }}
 
 <div class="row g-3 mb-4">
-  <div class="col-6 col-md-2"><div class="stat-tile"><div class="stat-value">{{ stats.get('student', 0) }}</div><div class="stat-label">студентов</div></div></div>
-  <div class="col-6 col-md-2"><div class="stat-tile"><div class="stat-value">{{ stats.get('psychologist', 0) }}</div><div class="stat-label">психологов</div></div></div>
-  <div class="col-6 col-md-2"><div class="stat-tile"><div class="stat-value">{{ stats.get('admin', 0) + stats.get('superadmin', 0) }}</div><div class="stat-label">администраторов</div></div></div>
-  <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value">{{ stats.tests }}</div><div class="stat-label">тестов</div></div></div>
-  <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value">{{ stats.results }}</div><div class="stat-label">результатов тестов</div></div></div>
+  <div class="col-6 col-lg">{{ stat(stats.get('student', 0), 'студентов', 'mortarboard') }}</div>
+  <div class="col-6 col-lg">{{ stat(stats.get('psychologist', 0), 'психологов', 'person-heart', 'success') }}</div>
+  <div class="col-6 col-lg">{{ stat(stats.get('admin', 0) + stats.get('superadmin', 0), 'админов', 'shield-lock', 'warning') }}</div>
+  <div class="col-6 col-lg">{{ stat(stats.tests, 'тестов', 'clipboard-check', 'info') }}</div>
+  <div class="col-12 col-lg">{{ stat(stats.results, 'результатов', 'bar-chart') }}</div>
 </div>
 
 <!-- Фильтры -->

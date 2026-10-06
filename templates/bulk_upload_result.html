@@ -1,15 +1,16 @@
 {% extends "base.html" %}
+{% from '_macros.html' import page_header, stat %}
 
 {% block title %}Результат импорта{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-3">Импорт завершён</h1>
+{{ page_header('Импорт завершён') }}
 
 <div class="row g-3 mb-4">
-  <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value text-success">{{ created }}</div><div class="stat-label">создано</div></div></div>
-  <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value text-primary">{{ updated }}</div><div class="stat-label">обновлено</div></div></div>
-  <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value text-warning">{{ skipped }}</div><div class="stat-label">пропущено</div></div></div>
-  <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value text-danger">{{ errors|length }}</div><div class="stat-label">ошибок</div></div></div>
+  <div class="col-6 col-md-3">{{ stat(created, 'создано', 'person-plus', 'success') }}</div>
+  <div class="col-6 col-md-3">{{ stat(updated, 'обновлено', 'arrow-repeat', '') }}</div>
+  <div class="col-6 col-md-3">{{ stat(skipped, 'пропущено', 'skip-forward', 'warning') }}</div>
+  <div class="col-6 col-md-3">{{ stat(errors|length, 'ошибок', 'exclamation-triangle', 'danger') }}</div>
 </div>
 
 {% if credentials_csv %}

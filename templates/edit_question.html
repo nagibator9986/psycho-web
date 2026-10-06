@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from '_macros.html' import page_header %}
 
 {% block title %}Вопрос {{ number }}{% endblock %}
 
@@ -11,7 +12,7 @@
   </ol>
 </nav>
 
-<h1 class="h4 mb-3">Вопрос {{ number }} · {{ QUESTION_TYPES.get(question.question_type, question.question_type) }}</h1>
+{{ page_header('Вопрос ' ~ number, QUESTION_TYPES.get(question.question_type, question.question_type)) }}
 
 <form method="POST">
   {{ csrf_field() }}

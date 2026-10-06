@@ -1,11 +1,12 @@
 {% extends "base.html" %}
+{% from '_macros.html' import page_header %}
 
 {% block title %}{{ 'Редактирование поста' if post else 'Новый пост' }}{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-lg-8">
-        <h1 class="h3 mb-4">{{ 'Редактирование поста' if post else 'Новый пост' }}</h1>
+        {{ page_header('Редактирование поста' if post else 'Новый пост', None if post else 'Расскажите, что вас волнует, — сообщество поддержит.') }}
         <form method="POST" action="{{ url_for('edit_post', post_id=post.id) if post else url_for('create_post') }}">
             {{ csrf_field() }}
             <div class="mb-3">

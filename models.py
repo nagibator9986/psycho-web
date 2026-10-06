@@ -22,6 +22,8 @@ class User(UserMixin, db.Model):
     group_id = db.Column(db.Integer, db.ForeignKey('groups.id'))
     # Пароль выдан администратором/импортом — при входе попросим сменить
     must_change_password = db.Column(db.Boolean, default=False, nullable=False)
+    # Когда пользователь согласился на обработку персональных данных (при регистрации)
+    privacy_accepted_at = db.Column(db.DateTime)
 
     # --------- Связи ---------
 

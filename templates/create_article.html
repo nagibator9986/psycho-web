@@ -1,11 +1,12 @@
 {% extends "base.html" %}
+{% from '_macros.html' import page_header %}
 
 {% block title %}{{ 'Редактирование статьи' if article else 'Новая статья' }}{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-lg-9">
-        <h1 class="h3 mb-4">{{ 'Редактирование статьи' if article else 'Новая статья' }}</h1>
+        {{ page_header('Редактирование статьи' if article else 'Новая статья') }}
         <form method="POST" enctype="multipart/form-data"
               action="{{ url_for('edit_article', article_id=article.id) if article else url_for('create_article') }}">
             {{ csrf_field() }}

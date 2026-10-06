@@ -44,7 +44,7 @@ def test_pages_render_for_every_role(app, make_user, client, login_as):
     admin = make_user('admin', role='superadmin')
     test = make_scale_test(psych)
 
-    public = ['/', '/login', '/register', '/emergency', '/articles', '/psychologists']
+    public = ['/', '/login', '/register', '/emergency', '/articles', '/psychologists', '/privacy']
     for url in public:
         assert client.get(url).status_code == 200, url
     assert client.get('/posts').status_code == 302  # форум только для своих
@@ -130,9 +130,14 @@ def test_register_validation(app, client, make_user):
     bad = client.post('/register', {'username': "x');alert(1)//", 'email': 'a@b.cc', 'full_name': 'A',
                                     'password': 'longpassword1', 'password2': 'longpassword1', 'group_id': gid})
     assert bad.status_code == 200 and User.query.count() == 1
+    no_consent = client.post('/register', {'username': '100000000009', 'email': 'a@b.cc', 'full_name': 'A',
+                                           'password': 'longpassword1', 'password2': 'longpassword1', 'group_id': gid})
+    assert no_consent.status_code == 200 and User.query.count() == 1
     ok = client.post('/register', {'username': '100000000009', 'email': 'a@b.cc', 'full_name': 'A',
-                                   'password': 'longpassword1', 'password2': 'longpassword1', 'group_id': gid})
+                                   'password': 'longpassword1', 'password2': 'longpassword1', 'group_id': gid,
+                                   'accept_privacy': '1'})
     assert ok.status_code == 302 and User.query.count() == 2
+    assert User.query.filter_by(username='100000000009').one().privacy_accepted_at is not None
 
 
 def test_upload_rejects_non_images(app, make_user, login_as):

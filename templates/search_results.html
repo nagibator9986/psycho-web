@@ -1,11 +1,10 @@
 {% extends "base.html" %}
-{% from '_macros.html' import avatar %}
+{% from '_macros.html' import avatar, page_header %}
 
 {% block title %}Поиск: {{ query }}{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-1">Поиск</h1>
-<p class="text-muted mb-4">По запросу «{{ query }}»</p>
+{{ page_header('Поиск', 'По запросу «' ~ query ~ '»') }}
 
 {% set total = tests|length + articles|length + posts|length + psychologists|length + students|length %}
 {% if not total %}

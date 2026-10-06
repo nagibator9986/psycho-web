@@ -1,17 +1,17 @@
 {% extends "base.html" %}
+{% from '_macros.html' import page_header, stat %}
 
 {% block title %}Мои тесты{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
-    <h1 class="h3 mb-0">Мои тесты</h1>
+{% call page_header('Мои тесты', 'Конструктор методик, результаты студентов и выгрузки.') %}
     <a href="{{ url_for('create_test') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Создать тест</a>
-</div>
+{% endcall %}
 
 <div class="row g-3 mb-4">
-    <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value">{{ tests|length }}</div><div class="stat-label">тестов</div></div></div>
-    <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value">{{ total_results }}</div><div class="stat-label">результатов</div></div></div>
-    <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value">{{ total_students }}</div><div class="stat-label">студентов в системе</div></div></div>
+    <div class="col-6 col-md-4">{{ stat(tests|length, 'тестов', 'clipboard-check') }}</div>
+    <div class="col-6 col-md-4">{{ stat(total_results, 'результатов', 'bar-chart', 'success') }}</div>
+    <div class="col-12 col-md-4">{{ stat(total_students, 'студентов в системе', 'people', 'info') }}</div>
 </div>
 
 {% if tests %}

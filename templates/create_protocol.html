@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from '_macros.html' import page_header %}
 
 {% block title %}Протокол встречи{% endblock %}
 
@@ -10,8 +11,7 @@
   </ol>
 </nav>
 
-<h1 class="h3 mb-1">Протокол встречи: {{ meeting.student.display_name }}</h1>
-<p class="text-muted mb-4">Дата встречи: {{ meeting.scheduled_at|when }}. После сохранения встреча отмечается как состоявшаяся.</p>
+{{ page_header('Протокол встречи', meeting.student.display_name ~ ' · ' ~ (meeting.scheduled_at|when) ~ '. После сохранения встреча отмечается как состоявшаяся.') }}
 
 {% if meeting.protocols %}
   <div class="alert alert-info small">

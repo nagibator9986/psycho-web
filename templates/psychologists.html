@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% from '_macros.html' import avatar, empty %}
+{% from '_macros.html' import avatar, empty, page_header %}
 
 {% block title %}Психологи{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-4">Наши психологи</h1>
+{{ page_header('Наши психологи', 'Напишите психологу открыто или анонимно — он ответит в сообщениях.') }}
 
 {% if psychologists %}
 <div class="row g-4">

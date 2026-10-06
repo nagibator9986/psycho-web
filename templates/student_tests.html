@@ -1,13 +1,10 @@
 {% extends "base.html" %}
-{% from '_macros.html' import empty %}
+{% from '_macros.html' import empty, page_header %}
 
 {% block title %}Тесты{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-2">Психологические тесты</h1>
-<p class="text-muted mb-4">
-    Отвечайте честно — правильных и неправильных ответов нет. Результаты видит только психолог.
-</p>
+{{ page_header('Психологические тесты', 'Отвечайте честно — правильных и неправильных ответов нет. Результаты видит только психолог.') }}
 
 {% if not is_student() %}
     <div class="alert alert-info">Вы видите список как студент. Проходить тесты могут только студенты — для вас открывается предпросмотр.</div>

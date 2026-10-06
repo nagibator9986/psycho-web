@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from '_macros.html' import avatar, status_badge, empty %}
+{% from '_macros.html' import avatar, status_badge, empty, stat %}
 
 {% block title %}{{ student.display_name }}{% endblock %}
 
@@ -11,11 +11,11 @@
   </ol>
 </nav>
 
-<div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+<div class="page-head">
   <div class="d-flex align-items-center gap-3">
-    {{ avatar(student, 72) }}
+    {{ avatar(student, 64) }}
     <div>
-      <h1 class="h3 mb-1">{{ student.full_name or 'ФИО не указано' }}</h1>
+      <h1>{{ student.full_name or 'ФИО не указано' }}</h1>
       <div class="text-muted small">
         ИИН {{ student.username }} · {{ student.email }}
         {% if student.group %} · {{ student.group.name }} ({{ student.group.course }} курс){% endif %}
@@ -23,18 +23,18 @@
       </div>
     </div>
   </div>
-  <div class="d-flex gap-2 flex-wrap">
-    <a href="{{ url_for('chat', contact_id=student.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-chat"></i> Написать</a>
-    <a href="{{ url_for('create_appointment', student_id=student.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-calendar-plus"></i> Встреча</a>
-    <a href="{{ url_for('create_report', student_id=student.id) }}" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-plus"></i> Отчёт</a>
+  <div class="page-actions">
+    <a href="{{ url_for('chat', contact_id=student.id) }}" class="btn btn-light"><i class="bi bi-chat"></i> Написать</a>
+    <a href="{{ url_for('create_appointment', student_id=student.id) }}" class="btn btn-light"><i class="bi bi-calendar-plus"></i> Встреча</a>
+    <a href="{{ url_for('create_report', student_id=student.id) }}" class="btn btn-primary"><i class="bi bi-file-earmark-plus"></i> Отчёт</a>
   </div>
 </div>
 
 <div class="row g-3 mb-4">
-  <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value">{{ test_results|length }}</div><div class="stat-label">пройдено тестов</div></div></div>
-  <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value {{ 'text-danger' if alerts }}">{{ alerts|length }}</div><div class="stat-label">требуют внимания</div></div></div>
-  <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value">{{ messages_sent }}</div><div class="stat-label">сообщений (не анонимных)</div></div></div>
-  <div class="col-6 col-md-3"><div class="stat-tile"><div class="stat-value">{{ posts_count }}</div><div class="stat-label">постов на форуме</div></div></div>
+  <div class="col-6 col-lg-3">{{ stat(test_results|length, 'пройдено тестов', 'clipboard-check') }}</div>
+  <div class="col-6 col-lg-3">{{ stat(alerts|length, 'требуют внимания', 'exclamation-octagon', 'danger' if alerts else 'success') }}</div>
+  <div class="col-6 col-lg-3">{{ stat(messages_sent, 'сообщений (не анонимных)', 'chat-dots', 'info') }}</div>
+  <div class="col-6 col-lg-3">{{ stat(posts_count, 'постов на форуме', 'people', 'warning') }}</div>
 </div>
 
 <div class="card mb-4">

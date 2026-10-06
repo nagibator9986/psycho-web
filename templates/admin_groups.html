@@ -1,10 +1,10 @@
 {% extends "base.html" %}
+{% from '_macros.html' import page_header %}
 
 {% block title %}Группы{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-3">Администрирование</h1>
-{% include '_admin_nav.html' %}
+{{ page_header('Группы', 'Студенты выбирают группу при регистрации.') }}
 
 <form method="post" action="{{ url_for('admin.group_create') }}" class="row g-2 mb-4">
   {{ csrf_field() }}
@@ -13,7 +13,7 @@
   <div class="col-md-2 d-grid"><button class="btn btn-primary">Создать</button></div>
 </form>
 
-<p class="small text-muted">Группы видны студентам при регистрации. Удалить можно только пустую группу.</p>
+<p class="small text-muted">Удалить можно только пустую группу.</p>
 
 <div class="table-responsive">
   <table class="table table-sm align-middle">

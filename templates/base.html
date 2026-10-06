@@ -4,237 +4,121 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="description" content="Психологическая поддержка студентов: тесты, консультации с психологом, анонимный чат и экстренная помощь.">
+    <meta name="theme-color" content="#4f46e5">
+    <link rel="icon" href="{{ url_for('static', filename='images/favicon.svg') }}" type="image/svg+xml">
 
-    <title>{% block title %}Психологическая поддержка студентов{% endblock %} | PsyStudentHelp</title>
+    <title>{% block title %}Психологическая поддержка студентов{% endblock %} · PsyStudentHelp</title>
 
-    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700&display=swap"
-        rel="stylesheet">
-
-    <!-- Bootstrap + Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-
-    <!-- Main App CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ asset_url('css/style.css') }}">
 
     {% block extra_css %}{% endblock %}
 </head>
-<body class="app-shell">
 {% set me = get_current_user() %}
 {% set chat_role = me and me.role in ['student', 'psychologist'] %}
+{% set layout = layout|default('app') %}
+{% set with_sidebar = me and layout != 'public' %}
+{% set ep = request.endpoint or '' %}
+
+{% macro side_link(endpoint, icon, label, active_on=[], badge_id=None, href=None) -%}
+    <a href="{{ href or url_for(endpoint) }}" class="side-link {% if ep == endpoint or ep in active_on %}active{% endif %}">
+        <i class="bi bi-{{ icon }}"></i><span>{{ label }}</span>
+        {% if badge_id %}<span class="app-badge" data-unread style="display:none">0</span>{% endif %}
+    </a>
+{%- endmacro %}
+
+<body class="app-shell{% if me %} has-user{% endif %}">
+<a class="skip-link" href="#main">К содержимому</a>
 
 <!-- =========================
-     HEADER / NAVBAR
+     TOPBAR
      ========================= -->
-<header class="app-header">
-    <nav class="app-navbar container-lg">
+<header class="app-topbar">
+    <div class="app-topbar-inner">
+        {% if with_sidebar %}
+            <button class="app-burger d-lg-none" type="button" data-nav-toggle aria-label="Открыть меню" aria-controls="appSidebar" aria-expanded="false">
+                <i class="bi bi-list"></i>
+            </button>
+        {% endif %}
 
-        <!-- LOGO -->
-        <a href="{{ url_for('index') }}" class="app-logo me-2">
-            <span class="logo-mark">
-                <i class="bi bi-heart-pulse-fill"></i>
-            </span>
+        <a href="{{ url_for('index') }}" class="app-logo">
+            <span class="logo-mark"><i class="bi bi-heart-pulse-fill"></i></span>
             <span class="logo-text">
                 <span class="logo-title">PsyStudentHelp</span>
-                <span class="logo-subtitle">Психологическая поддержка студентов</span>
+                <span class="logo-subtitle d-none d-sm-block">Психологическая поддержка студентов</span>
             </span>
         </a>
 
-        {% if me %}
-            <!-- SEARCH (desktop / tablet) -->
-            <form action="{{ url_for('search') }}" method="get"
-                  class="app-search d-none d-md-flex ms-3 align-items-center" role="search">
+        {% if with_sidebar %}
+            <form action="{{ url_for('search') }}" method="get" class="app-search d-none d-md-block" role="search">
                 <i class="bi bi-search"></i>
                 <input type="search" name="q" maxlength="100" aria-label="Поиск"
                        value="{{ query if query is defined else '' }}"
-                       placeholder="Найти тест, статью или психолога...">
+                       placeholder="{{ 'Студент, тест, статья…' if me.role == 'psychologist' else 'Тест, статья или психолог…' }}">
             </form>
+        {% else %}
+            <nav class="public-nav d-none d-lg-flex" aria-label="Разделы">
+                <a href="{{ url_for('articles') }}" class="{{ 'active' if ep in ['articles', 'view_article'] }}">Статьи</a>
+                <a href="{{ url_for('psychologists') }}" class="{{ 'active' if ep == 'psychologists' }}">Психологи</a>
+                <a href="{{ url_for('privacy') }}" class="{{ 'active' if ep == 'privacy' }}">Конфиденциальность</a>
+                {% if me %}<a href="{{ url_for('dashboard') }}">Личный кабинет</a>{% endif %}
+            </nav>
         {% endif %}
 
-        <!-- BURGER (mobile) -->
-        <button class="app-burger ms-auto d-lg-none" type="button"
-                aria-label="Открыть меню" aria-expanded="false" data-mobile-toggle>
-            <span class="burger-line"></span>
-            <span class="burger-line"></span>
-            <span class="burger-line"></span>
-        </button>
-
-        <!-- DESKTOP NAV -->
-        <div class="d-none d-lg-flex align-items-center ms-auto gap-2">
-
-            <ul class="navbar-nav main-nav flex-row align-items-center">
-                <li class="nav-item">
-                    <a class="nav-link-main {% if request.endpoint == 'index' %}active{% endif %}"
-                       href="{{ url_for('index') }}">
-                        <i class="bi bi-house-door"></i><span>Главная</span>
-                    </a>
-                </li>
-
-                {% if me %}
-                    {% if not me.is_admin %}
-                    <li class="nav-item">
-                        <a class="nav-link-main {% if request.endpoint == 'dashboard' %}active{% endif %}"
-                           href="{{ url_for('dashboard') }}">
-                            <i class="bi bi-grid"></i><span>Панель</span>
-                        </a>
-                    </li>
-                    {% endif %}
-                    <li class="nav-item">
-                        <a class="nav-link-main {% if request.endpoint in ['posts', 'create_post', 'view_post', 'edit_post'] %}active{% endif %}"
-                           href="{{ url_for('posts') }}">
-                            <i class="bi bi-people"></i><span>Форум</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link-main {% if request.endpoint in ['tests', 'create_test', 'take_test', 'add_questions', 'edit_test', 'edit_question', 'test_results', 'test_result'] %}active{% endif %}"
-                           href="{{ url_for('tests') }}">
-                            <i class="bi bi-clipboard-check"></i><span>Тесты</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link-main {% if request.endpoint in ['articles', 'create_article', 'view_article', 'edit_article'] %}active{% endif %}"
-                           href="{{ url_for('articles') }}">
-                            <i class="bi bi-journal-text"></i><span>Статьи</span>
-                        </a>
-                    </li>
-                    {% if chat_role %}
-                    <li class="nav-item">
-                        <a class="nav-link-main {% if request.endpoint in ['messages', 'chat', 'anon_chat', 'anon_thread'] %}active{% endif %}"
-                           href="{{ url_for('messages') }}">
-                            <i class="bi bi-chat-dots"></i><span>Сообщения</span>
-                            <span id="unread-count" class="app-badge ms-1" style="display:none;">0</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link-main {% if request.endpoint in ['appointments', 'create_appointment', 'create_protocol'] %}active{% endif %}"
-                           href="{{ url_for('appointments') }}">
-                            <i class="bi bi-calendar-event"></i><span>Встречи</span>
-                        </a>
-                    </li>
-                    {% endif %}
-                    {% if me.role == 'psychologist' %}
-                    <li class="nav-item">
-                        <a class="nav-link-main {% if request.endpoint in ['student_list', 'student_analytics', 'create_report'] %}active{% endif %}"
-                           href="{{ url_for('student_list') }}">
-                            <i class="bi bi-mortarboard"></i><span>Студенты</span>
-                        </a>
-                    </li>
-                    {% endif %}
-                    {% if me.is_admin %}
-                    <li class="nav-item">
-                        <a class="nav-link-main {% if request.blueprint == 'admin' %}active{% endif %}"
-                           href="{{ url_for('admin.superadmin_home') }}">
-                            <i class="bi bi-shield-lock"></i><span>Админ</span>
-                        </a>
-                    </li>
-                    {% endif %}
-                {% endif %}
-            </ul>
-
-            <a href="{{ url_for('emergency') }}" class="nav-link-cta d-none d-md-inline-flex">
-                <i class="bi bi-exclamation-triangle-fill"></i><span>Экстренная помощь</span>
+        <div class="topbar-actions">
+            <a href="{{ url_for('emergency') }}" class="btn-sos" title="Экстренная помощь">
+                <i class="bi bi-life-preserver"></i><span class="d-none d-sm-inline">Нужна помощь</span>
             </a>
 
+            {% if chat_role %}
+                <a href="{{ url_for('messages') }}" class="icon-btn" title="Сообщения" aria-label="Сообщения">
+                    <i class="bi bi-chat-dots"></i>
+                    <span class="app-badge" data-unread style="display:none">0</span>
+                </a>
+            {% endif %}
+
             {% if me %}
-                <div class="dropdown nav-profile">
-                    <button class="nav-profile-toggle dropdown-toggle" data-bs-toggle="dropdown"
-                            aria-expanded="false" type="button">
-                        <span class="profile-avatar">{{ (me.display_name or '?')[0]|upper }}</span>
-                        <span class="d-flex profile-meta">
+                <div class="dropdown">
+                    <button class="nav-profile-toggle dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" type="button">
+                        {% from '_macros.html' import avatar %}
+                        {{ avatar(me, 34) }}
+                        <span class="profile-meta d-none d-md-flex">
                             <span class="profile-name">{{ me.display_name }}</span>
                             <span class="profile-role">{{ ROLE_NAMES.get(me.role, me.role) }}</span>
                         </span>
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end">
-                        <li><a class="dropdown-item" href="{{ url_for('profile', username=me.username) }}">
-                            <i class="bi bi-person-circle me-2"></i> Профиль</a></li>
-                        <li><a class="dropdown-item" href="{{ url_for('change_password') }}">
-                            <i class="bi bi-key me-2"></i> Сменить пароль</a></li>
-                        <li><a class="dropdown-item" href="{{ url_for('dashboard') }}">
-                            <i class="bi bi-grid me-2"></i> Панель</a></li>
+                        <li class="dropdown-header-user d-md-none">
+                            <div class="fw-semibold">{{ me.display_name }}</div>
+                            <div class="small text-muted">{{ ROLE_NAMES.get(me.role, me.role) }}</div>
+                        </li>
+                        <li><a class="dropdown-item" href="{{ url_for('dashboard') }}"><i class="bi bi-grid me-2"></i>Личный кабинет</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('profile', username=me.username) }}"><i class="bi bi-person-circle me-2"></i>Профиль</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('change_password') }}"><i class="bi bi-key me-2"></i>Сменить пароль</a></li>
                         <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}">
-                            <i class="bi bi-box-arrow-right me-2"></i> Выйти</a></li>
+                        <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right me-2"></i>Выйти</a></li>
                     </ul>
                 </div>
             {% else %}
-                <div class="d-flex align-items-center ms-3 gap-2">
-                    <a href="{{ url_for('login') }}" class="btn btn-light btn-sm px-3">Войти</a>
-                    <a href="{{ url_for('register') }}" class="btn btn-primary btn-sm px-3">Регистрация</a>
-                </div>
-            {% endif %}
-        </div>
-    </nav>
-
-    <!-- MOBILE NAV OVERLAY -->
-    <div class="app-mobile-nav d-lg-none" id="appMobileNav">
-        <div class="app-mobile-nav-inner container">
-            {% if me %}
-                <div class="mb-3 d-flex align-items-center justify-content-between">
-                    <div class="d-flex align-items-center gap-3">
-                        <span class="profile-avatar">{{ (me.display_name or '?')[0]|upper }}</span>
-                        <div class="d-flex flex-column">
-                            <span class="profile-name">{{ me.display_name }}</span>
-                            <span class="profile-role">{{ ROLE_NAMES.get(me.role, me.role) }}</span>
-                        </div>
-                    </div>
-                    <a href="{{ url_for('profile', username=me.username) }}" class="badge-soft text-decoration-none">Профиль</a>
-                </div>
-
-                <form action="{{ url_for('search') }}" method="get" class="mb-3" role="search">
-                    <input type="search" name="q" class="form-control" maxlength="100" placeholder="Поиск...">
-                </form>
-
-                <div class="app-mobile-links">
-                    <a href="{{ url_for('index') }}" class="app-mobile-link {% if request.endpoint == 'index' %}active{% endif %}">
-                        <i class="bi bi-house-door"></i><span>Главная</span></a>
-                    <a href="{{ url_for('dashboard') }}" class="app-mobile-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
-                        <i class="bi bi-grid"></i><span>Панель</span></a>
-                    <a href="{{ url_for('posts') }}" class="app-mobile-link {% if request.endpoint in ['posts', 'create_post', 'view_post'] %}active{% endif %}">
-                        <i class="bi bi-people"></i><span>Форум</span></a>
-                    <a href="{{ url_for('tests') }}" class="app-mobile-link {% if request.endpoint in ['tests', 'take_test', 'add_questions'] %}active{% endif %}">
-                        <i class="bi bi-clipboard-check"></i><span>Тесты</span></a>
-                    <a href="{{ url_for('articles') }}" class="app-mobile-link {% if request.endpoint in ['articles', 'view_article'] %}active{% endif %}">
-                        <i class="bi bi-journal-text"></i><span>Статьи</span></a>
-                    {% if chat_role %}
-                    <a href="{{ url_for('messages') }}" class="app-mobile-link {% if request.endpoint in ['messages', 'chat', 'anon_chat', 'anon_thread'] %}active{% endif %}">
-                        <i class="bi bi-chat-dots"></i><span>Сообщения</span>
-                        <span id="unread-count-mobile" class="app-badge ms-auto" style="display:none;">0</span></a>
-                    <a href="{{ url_for('appointments') }}" class="app-mobile-link {% if request.endpoint == 'appointments' %}active{% endif %}">
-                        <i class="bi bi-calendar-event"></i><span>Встречи</span></a>
-                    {% endif %}
-                    {% if me.role == 'psychologist' %}
-                    <a href="{{ url_for('student_list') }}" class="app-mobile-link {% if request.endpoint in ['student_list', 'student_analytics'] %}active{% endif %}">
-                        <i class="bi bi-mortarboard"></i><span>Студенты</span></a>
-                    {% endif %}
-                    {% if me.is_admin %}
-                    <a href="{{ url_for('admin.superadmin_home') }}" class="app-mobile-link {% if request.blueprint == 'admin' %}active{% endif %}">
-                        <i class="bi bi-shield-lock"></i><span>Админ</span></a>
-                    {% endif %}
-                    <a href="{{ url_for('emergency') }}" class="app-mobile-link app-mobile-link-accent">
-                        <i class="bi bi-exclamation-triangle-fill"></i><span>Экстренная помощь</span></a>
-                </div>
-
-                <div class="mt-3 d-flex align-items-center justify-content-between">
-                    <a href="{{ url_for('change_password') }}" class="small text-decoration-none">
-                        <i class="bi bi-key me-1"></i> Сменить пароль</a>
-                    <a href="{{ url_for('logout') }}" class="text-danger small text-decoration-none">
-                        <i class="bi bi-box-arrow-right me-1"></i> Выйти</a>
-                </div>
-            {% else %}
-                <div class="app-mobile-links">
-                    <a href="{{ url_for('index') }}" class="app-mobile-link {% if request.endpoint == 'index' %}active{% endif %}">
-                        <i class="bi bi-house-door"></i><span>Главная</span></a>
-                    <a href="{{ url_for('login') }}" class="app-mobile-link {% if request.endpoint == 'login' %}active{% endif %}">
-                        <i class="bi bi-box-arrow-in-right"></i><span>Войти</span></a>
-                    <a href="{{ url_for('register') }}" class="app-mobile-link {% if request.endpoint == 'register' %}active{% endif %}">
-                        <i class="bi bi-person-plus"></i><span>Регистрация</span></a>
-                    <a href="{{ url_for('emergency') }}" class="app-mobile-link app-mobile-link-accent">
-                        <i class="bi bi-exclamation-triangle-fill"></i><span>Экстренная помощь</span></a>
+                <a href="{{ url_for('login') }}" class="btn btn-light btn-sm d-none d-sm-inline-flex">Войти</a>
+                <a href="{{ url_for('register') }}" class="btn btn-primary btn-sm d-none d-sm-inline-flex">Регистрация</a>
+                <div class="dropdown d-lg-none">
+                    <button class="icon-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Меню" type="button">
+                        <i class="bi bi-list"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="{{ url_for('login') }}"><i class="bi bi-box-arrow-in-right me-2"></i>Войти</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('register') }}"><i class="bi bi-person-plus me-2"></i>Регистрация</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('articles') }}"><i class="bi bi-journal-text me-2"></i>Статьи</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('psychologists') }}"><i class="bi bi-person-heart me-2"></i>Психологи</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('privacy') }}"><i class="bi bi-shield-lock me-2"></i>Конфиденциальность</a></li>
+                        <li><a class="dropdown-item text-danger" href="{{ url_for('emergency') }}"><i class="bi bi-life-preserver me-2"></i>Экстренная помощь</a></li>
+                    </ul>
                 </div>
             {% endif %}
         </div>
@@ -244,7 +128,7 @@
 <!-- =========================
      FLASH / TOAST MESSAGES
      ========================= -->
-<div class="flash-stack">
+<div class="flash-stack" aria-live="polite">
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% for category, message in messages %}
             {% set category = 'info' if category == 'message' else category %}
@@ -269,135 +153,200 @@
     {% endwith %}
 </div>
 
-<!-- =========================
-     MAIN CONTENT
-     ========================= -->
-<main class="app-main">
-    <div class="container-lg">
-        <div class="app-card app-page-card animate-page-in">
-            {% block content %}{% endblock %}
-        </div>
-    </div>
-</main>
-
-<!-- =========================
-     FOOTER
-     ========================= -->
-<footer class="app-footer">
-    <div class="footer-inner">
-        <div class="row g-4">
-            <div class="col-md-4">
-                <div class="footer-brand">
-                    <span class="footer-dot"></span>
-                    PsyStudentHelp
-                </div>
-                <p class="footer-text">
-                    {% if org_name %}{{ org_name }}. {% endif %}
-                    Платформа психологической помощи студентам: тесты, консультации и
-                    полезные материалы, чтобы вовремя заметить и поддержать.
-                </p>
-            </div>
-            <div class="col-md-4">
-                <h6 class="footer-heading">Контакты</h6>
-                <ul class="footer-list">
-                    {% if support_email %}
-                    <li><i class="bi bi-envelope"></i> <a href="mailto:{{ support_email }}">{{ support_email }}</a></li>
-                    {% endif %}
-                    {% if support_phone %}
-                    <li><i class="bi bi-telephone"></i> {{ support_phone }}</li>
-                    {% endif %}
-                    <li><i class="bi bi-telephone-forward"></i> Телефон доверия для детей и молодёжи: <b>150</b></li>
-                    <li><i class="bi bi-shield-check"></i> Экстренные службы: <b>112</b></li>
-                </ul>
-            </div>
-            <div class="col-md-4">
-                <h6 class="footer-heading">Навигация</h6>
-                <ul class="footer-list">
-                    <li><i class="bi bi-exclamation-triangle"></i> <a href="{{ url_for('emergency') }}">Экстренная помощь</a></li>
-                    <li><i class="bi bi-journal-text"></i> <a href="{{ url_for('articles') }}">Полезные статьи</a></li>
-                    <li><i class="bi bi-person-heart"></i> <a href="{{ url_for('psychologists') }}">Наши психологи</a></li>
-                </ul>
-            </div>
+<div class="app-body">
+    {% if with_sidebar %}
+    <!-- =========================
+         SIDEBAR
+         ========================= -->
+    <aside class="app-sidebar" id="appSidebar" aria-label="Навигация">
+        <div class="d-flex align-items-center justify-content-between mb-3 sidebar-only-mobile">
+            <span class="fw-semibold">Меню</span>
+            <button type="button" class="icon-btn" data-nav-close aria-label="Закрыть меню"><i class="bi bi-x-lg"></i></button>
         </div>
 
-        <div class="footer-bottom d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
-            <span>&copy; {{ current_year }} PsyStudentHelp</span>
-            <span class="d-flex align-items-center gap-2">
-                <span class="footer-dot-small"></span>
-                <span>Если что-то чувствуется «не так» — это уже важный сигнал 💬</span>
-            </span>
-        </div>
-    </div>
-</footer>
+        <form action="{{ url_for('search') }}" method="get" class="mb-3 d-md-none" role="search">
+            <input type="search" name="q" class="form-control" maxlength="100" placeholder="Поиск…" aria-label="Поиск">
+        </form>
 
-<!-- =========================
-     SCRIPTS
-     ========================= -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        // ===== MOBILE NAV TOGGLE =====
-        const burger = document.querySelector('[data-mobile-toggle]');
-        const mobileNav = document.getElementById('appMobileNav');
-        if (burger && mobileNav) {
-            burger.addEventListener('click', function () {
-                const isOpen = mobileNav.classList.toggle('open');
-                document.body.classList.toggle('nav-open', isOpen);
-                burger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-            });
-            mobileNav.addEventListener('click', function (e) {
-                if (e.target === mobileNav) {
-                    mobileNav.classList.remove('open');
-                    document.body.classList.remove('nav-open');
-                    burger.setAttribute('aria-expanded', 'false');
-                }
-            });
-        }
-
-        // ===== FLASH TOASTS: успех/инфо скрываются сами, ошибки — по кнопке =====
-        document.querySelectorAll('.alert-toast').forEach(function (toastEl) {
-            function hide() {
-                toastEl.classList.add('hide');
-                setTimeout(function () { toastEl.remove(); }, 220);
-            }
-            const closeBtn = toastEl.querySelector('.alert-close');
-            if (closeBtn) closeBtn.addEventListener('click', hide);
-            if (toastEl.hasAttribute('data-autohide')) setTimeout(hide, 5000);
-        });
-
-        // ===== Модальные окна выносим в body, чтобы их не обрезала карточка страницы =====
-        document.querySelectorAll('.app-page-card .modal').forEach(function (m) {
-            document.body.appendChild(m);
-        });
-
-        // ===== ПОДТВЕРЖДЕНИЕ ОПАСНЫХ ДЕЙСТВИЙ: <form data-confirm="..."> =====
-        document.querySelectorAll('form[data-confirm]').forEach(function (form) {
-            form.addEventListener('submit', function (e) {
-                if (!window.confirm(form.getAttribute('data-confirm'))) e.preventDefault();
-            });
-        });
-
-        {% if chat_role %}
-        // ===== UNREAD MESSAGES BADGE =====
-        function updateUnreadCount() {
-            fetch("{{ url_for('unread_messages_count') }}", {credentials: 'same-origin'})
-                .then(function (r) { return r.ok ? r.json() : {count: 0}; })
-                .then(function (data) {
-                    const count = data.count || 0;
-                    ['unread-count', 'unread-count-mobile'].forEach(function (id) {
-                        const el = document.getElementById(id);
-                        if (!el) return;
-                        el.textContent = count;
-                        el.style.display = count > 0 ? '' : 'none';
-                    });
-                })
-                .catch(function () {});
-        }
-        updateUnreadCount();
-        setInterval(updateUnreadCount, 30000);
+        {% if me.role == 'student' %}
+            <div class="side-group">
+                <div class="side-title">Моё</div>
+                {{ side_link('dashboard', 'grid', 'Главная') }}
+                {{ side_link('tests', 'clipboard-check', 'Тесты', ['take_test', 'test_result']) }}
+                {{ side_link('messages', 'chat-dots', 'Сообщения', ['chat', 'anon_chat'], badge_id='side') }}
+                {{ side_link('appointments', 'calendar-event', 'Встречи') }}
+            </div>
+            <div class="side-group">
+                <div class="side-title">Сообщество</div>
+                {{ side_link('posts', 'people', 'Форум', ['create_post', 'view_post', 'edit_post']) }}
+                {{ side_link('articles', 'journal-text', 'Статьи', ['view_article']) }}
+                {{ side_link('psychologists', 'person-heart', 'Психологи') }}
+            </div>
+        {% elif me.role == 'psychologist' %}
+            <div class="side-group">
+                <div class="side-title">Работа</div>
+                {{ side_link('dashboard', 'grid', 'Панель') }}
+                {{ side_link('student_list', 'mortarboard', 'Студенты', ['student_analytics', 'create_report', 'create_appointment']) }}
+                {{ side_link('tests', 'clipboard-check', 'Тесты', ['create_test', 'add_questions', 'edit_test', 'edit_question', 'test_results', 'test_result', 'take_test']) }}
+                {{ side_link('messages', 'chat-dots', 'Сообщения', ['chat', 'anon_thread'], badge_id='side') }}
+                {{ side_link('appointments', 'calendar-event', 'Встречи', ['create_protocol']) }}
+            </div>
+            <div class="side-group">
+                <div class="side-title">Сообщество</div>
+                {{ side_link('posts', 'people', 'Форум', ['create_post', 'view_post', 'edit_post']) }}
+                {{ side_link('articles', 'journal-text', 'Статьи', ['view_article', 'create_article', 'edit_article']) }}
+            </div>
+        {% else %}
+            <div class="side-group">
+                <div class="side-title">Администрирование</div>
+                {{ side_link('admin.superadmin_home', 'people', 'Пользователи') }}
+                {{ side_link('admin.groups', 'collection', 'Группы') }}
+            </div>
+            <div class="side-group">
+                <div class="side-title">Платформа</div>
+                {{ side_link('tests', 'clipboard-check', 'Тесты', ['take_test']) }}
+                {{ side_link('posts', 'people', 'Форум', ['create_post', 'view_post', 'edit_post']) }}
+                {{ side_link('articles', 'journal-text', 'Статьи', ['view_article']) }}
+            </div>
         {% endif %}
+
+        <div class="side-group sidebar-only-mobile">
+            <div class="side-title">Аккаунт</div>
+            {{ side_link('profile', 'person-circle', 'Профиль', href=url_for('profile', username=me.username)) }}
+            {{ side_link('change_password', 'key', 'Сменить пароль') }}
+            {{ side_link('logout', 'box-arrow-right', 'Выйти') }}
+        </div>
+
+        <div class="side-help mt-4">
+            <div class="side-help-title"><i class="bi bi-life-preserver"></i> Нужна помощь сейчас?</div>
+            Телефон доверия <a href="tel:150">150</a>, экстренные службы <a href="tel:112">112</a>.
+            <div class="mt-1"><a href="{{ url_for('emergency') }}" class="fw-semibold">Все контакты →</a></div>
+        </div>
+    </aside>
+    <div class="sidebar-backdrop" data-nav-close></div>
+    {% endif %}
+
+    <div class="app-content">
+        {% block main %}
+        <main class="app-main" id="main">
+            <div class="app-main-inner">
+                <div class="app-page-card">
+                    {% block content %}{% endblock %}
+                </div>
+            </div>
+        </main>
+        {% endblock %}
+
+        <!-- =========================
+             FOOTER
+             ========================= -->
+        {% if with_sidebar %}
+        <footer class="app-footer is-compact">
+            <div class="footer-inner d-flex justify-content-between flex-wrap gap-2">
+                <span>&copy; {{ current_year }} PsyStudentHelp{% if org_name %} · {{ org_name }}{% endif %}</span>
+                <span class="d-flex gap-3 flex-wrap">
+                    <a href="{{ url_for('privacy') }}" class="text-muted text-decoration-none">Конфиденциальность</a>
+                    <a href="{{ url_for('emergency') }}" class="text-muted text-decoration-none">Экстренная помощь</a>
+                    {% if support_email %}<a href="mailto:{{ support_email }}" class="text-muted text-decoration-none">{{ support_email }}</a>{% endif %}
+                </span>
+            </div>
+        </footer>
+        {% else %}
+        <footer class="app-footer">
+            <div class="footer-inner">
+                <div class="row g-4">
+                    <div class="col-md-5">
+                        <div class="footer-brand">PsyStudentHelp</div>
+                        <p class="mb-0" style="max-width: 360px;">
+                            {% if org_name %}{{ org_name }}. {% endif %}
+                            Психологическая поддержка студентов: тесты, консультации и полезные материалы,
+                            чтобы вовремя заметить и поддержать.
+                        </p>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="footer-heading">Помощь</div>
+                        <ul class="footer-list">
+                            <li><i class="bi bi-telephone"></i> Телефон доверия: <b>150</b></li>
+                            <li><i class="bi bi-telephone"></i> Защита прав детей: <b>111</b></li>
+                            <li><i class="bi bi-shield-plus"></i> Экстренные службы: <b>112</b></li>
+                            {% if support_phone %}<li><i class="bi bi-building"></i> {{ support_phone }}</li>{% endif %}
+                            {% if support_email %}<li><i class="bi bi-envelope"></i> <a href="mailto:{{ support_email }}">{{ support_email }}</a></li>{% endif %}
+                        </ul>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="footer-heading">Разделы</div>
+                        <ul class="footer-list">
+                            <li><a href="{{ url_for('emergency') }}">Экстренная помощь</a></li>
+                            <li><a href="{{ url_for('psychologists') }}">Наши психологи</a></li>
+                            <li><a href="{{ url_for('articles') }}">Полезные статьи</a></li>
+                            <li><a href="{{ url_for('privacy') }}">Конфиденциальность</a></li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="footer-bottom">
+                    <span>&copy; {{ current_year }} PsyStudentHelp</span>
+                    <span>Если что-то чувствуется «не так» — это уже важный сигнал.</span>
+                </div>
+            </div>
+        </footer>
+        {% endif %}
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // ===== Боковое меню на телефоне =====
+    const toggle = document.querySelector('[data-nav-toggle]');
+    function setNav(open) {
+        document.body.classList.toggle('nav-open', open);
+        if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    if (toggle) toggle.addEventListener('click', function () { setNav(!document.body.classList.contains('nav-open')); });
+    document.querySelectorAll('[data-nav-close]').forEach(function (el) {
+        el.addEventListener('click', function () { setNav(false); });
     });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setNav(false); });
+
+    // ===== Уведомления: успех/инфо скрываются сами, ошибки — по кнопке =====
+    document.querySelectorAll('.alert-toast').forEach(function (toastEl) {
+        function hide() {
+            toastEl.classList.add('hide');
+            setTimeout(function () { toastEl.remove(); }, 200);
+        }
+        const closeBtn = toastEl.querySelector('.alert-close');
+        if (closeBtn) closeBtn.addEventListener('click', hide);
+        if (toastEl.hasAttribute('data-autohide')) setTimeout(hide, 5000);
+    });
+
+    // ===== Модальные окна — в body, чтобы их не обрезала карточка страницы =====
+    document.querySelectorAll('.app-page-card .modal').forEach(function (m) { document.body.appendChild(m); });
+
+    // ===== Подтверждение опасных действий: <form data-confirm="..."> =====
+    document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+        form.addEventListener('submit', function (e) {
+            if (!window.confirm(form.getAttribute('data-confirm'))) e.preventDefault();
+        });
+    });
+
+    {% if chat_role %}
+    // ===== Счётчик непрочитанных =====
+    function updateUnread() {
+        fetch("{{ url_for('unread_messages_count') }}", {credentials: 'same-origin'})
+            .then(function (r) { return r.ok ? r.json() : {count: 0}; })
+            .then(function (data) {
+                const count = data.count || 0;
+                document.querySelectorAll('[data-unread]').forEach(function (el) {
+                    el.textContent = count > 99 ? '99+' : count;
+                    el.style.display = count > 0 ? '' : 'none';
+                });
+            })
+            .catch(function () {});
+    }
+    updateUnread();
+    setInterval(updateUnread, 30000);
+    {% endif %}
+});
 </script>
 
 {% block extra_js %}{% endblock %}

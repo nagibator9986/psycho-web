@@ -1,13 +1,12 @@
 {% extends "base.html" %}
-{% from '_macros.html' import avatar, pager, empty %}
+{% from '_macros.html' import avatar, pager, empty, page_header %}
 
 {% block title %}Форум{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="h3 mb-0">Сообщество</h1>
+{% call page_header('Форум', 'Делитесь опытом и поддерживайте друг друга. Студенты могут писать анонимно.') %}
     <a href="{{ url_for('create_post') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Новый пост</a>
-</div>
+{% endcall %}
 
 <div class="row g-4">
     <div class="col-lg-8">

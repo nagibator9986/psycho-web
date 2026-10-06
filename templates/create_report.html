@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from '_macros.html' import page_header %}
 
 {% block title %}Отчёт: {{ student.display_name }}{% endblock %}
 
@@ -11,7 +12,7 @@
   </ol>
 </nav>
 
-<h1 class="h3 mb-4">Отчёт о студенте: {{ student.display_name }}</h1>
+{{ page_header('Отчёт о студенте', student.display_name) }}
 
 <form method="POST" action="{{ url_for('create_report', student_id=student.id) }}">
   {{ csrf_field() }}

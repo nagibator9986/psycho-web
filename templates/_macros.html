@@ -40,3 +40,22 @@
     <div>{{ text }}</div>
   </div>
 {%- endmacro %}
+
+{% macro stat(value, label, icon, tone='', href=None) -%}
+  {%- if href %}<a href="{{ href }}" class="text-decoration-none text-reset d-block h-100">{% endif -%}
+  <div class="stat-tile">
+    <span class="stat-icon {{ 'is-' ~ tone if tone }}"><i class="bi bi-{{ icon }}"></i></span>
+    <div><div class="stat-value">{{ value }}</div><div class="stat-label">{{ label }}</div></div>
+  </div>
+  {%- if href %}</a>{% endif -%}
+{%- endmacro %}
+
+{% macro page_header(title, subtitle=None) -%}
+  <div class="page-head">
+    <div>
+      <h1>{{ title }}</h1>
+      {% if subtitle %}<p class="page-sub">{{ subtitle }}</p>{% endif %}
+    </div>
+    {% if caller is defined %}<div class="page-actions">{{ caller() }}</div>{% endif %}
+  </div>
+{%- endmacro %}

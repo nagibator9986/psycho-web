@@ -1,21 +1,31 @@
 {% extends "base.html" %}
-{% from '_macros.html' import avatar, status_badge, empty %}
+{% from '_macros.html' import avatar, status_badge, empty, stat %}
 
 {% block title %}Личный кабинет{% endblock %}
 
 {% block content %}
+<div class="page-head">
+    <div class="d-flex align-items-center gap-3">
+        {{ avatar(user, 56) }}
+        <div>
+            <h1>Привет, {{ user|greeting_name }}!</h1>
+            <p class="page-sub">{% if user.group %}{{ user.group.name }} · {% endif %}Как вы сегодня? Если что-то тревожит — напишите психологу.</p>
+        </div>
+    </div>
+    <div class="page-actions">
+        <a href="{{ url_for('messages') }}" class="btn btn-primary"><i class="bi bi-chat-heart"></i> Написать психологу</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">{{ stat(available_tests|length, 'новых тестов', 'clipboard-check', '', url_for('tests')) }}</div>
+    <div class="col-6 col-lg-3">{{ stat(unread_messages, 'новых сообщений', 'chat-dots', 'info', url_for('messages')) }}</div>
+    <div class="col-6 col-lg-3">{{ stat(upcoming_appointments|length, 'предстоящих встреч', 'calendar-event', 'warning', url_for('appointments')) }}</div>
+    <div class="col-6 col-lg-3">{{ stat(recent_results|length, 'пройдено тестов', 'check2-circle', 'success') }}</div>
+</div>
+
 <div class="row g-4">
     <div class="col-lg-4">
-        <div class="card mb-4">
-            <div class="card-body text-center">
-                <div class="mb-3">{{ avatar(user, 110) }}</div>
-                <h4 class="mb-1">{{ user.display_name }}</h4>
-                <p class="text-muted mb-3">
-                    Студент{% if user.group %} · {{ user.group.name }}{% endif %}
-                </p>
-                <a href="{{ url_for('edit_profile') }}" class="btn btn-outline-primary btn-sm">Редактировать профиль</a>
-            </div>
-        </div>
 
         <div class="card mb-4">
             <div class="card-header"><h5 class="mb-0">Быстрые действия</h5></div>

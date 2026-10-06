@@ -1,47 +1,66 @@
 {% extends "base.html" %}
+{% set layout = 'public' %}
 
 {% block title %}Вход{% endblock %}
 
-{% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-8 col-lg-6">
-        <div class="card shadow-sm">
-            <div class="card-body p-4 p-md-5">
-                <h2 class="card-title text-center mb-4">Вход в систему</h2>
-                <form method="POST" action="{{ url_for('login') }}">
-                    {{ csrf_field() }}
-                    {% if request.values.get('next') %}
-                        <input type="hidden" name="next" value="{{ request.values.get('next') }}">
-                    {% endif %}
-                    <div class="mb-3">
-                        <label for="username" class="form-label">ИИН (логин) или email</label>
-                        <input type="text" class="form-control" id="username" name="username"
-                               value="{{ username }}" autocomplete="username" required autofocus>
-                    </div>
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Пароль</label>
-                        <input type="password" class="form-control" id="password" name="password"
-                               autocomplete="current-password" required>
-                    </div>
-                    <div class="mb-3 form-check">
-                        <input type="checkbox" class="form-check-input" id="remember" name="remember" value="1">
-                        <label class="form-check-label" for="remember">Запомнить меня на этом устройстве</label>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100 py-2">Войти</button>
-                </form>
-                <div class="text-center mt-3">
-                    <p class="mb-2">Нет аккаунта? <a href="{{ url_for('register') }}">Зарегистрироваться</a></p>
-                    <details class="small text-muted">
-                        <summary>Забыли пароль?</summary>
-                        <p class="mt-2 mb-0">
-                            Обратитесь к психологу или администратору платформы{% if support_email %}
-                            (<a href="mailto:{{ support_email }}">{{ support_email }}</a>){% endif %}:
-                            вам выдадут временный пароль, а при входе вы зададите новый.
-                        </p>
-                    </details>
-                </div>
-            </div>
+{% block main %}
+<main class="auth-wrap" id="main">
+  <div class="auth-card">
+    {% set aside_title = 'С возвращением' %}
+    {% set aside_text = 'Войдите, чтобы продолжить: тесты, сообщения и встречи с психологом.' %}
+    {% include '_auth_aside.html' %}
+
+    <div class="auth-form">
+      <h1>Вход</h1>
+      <p class="text-muted mb-4">Нет аккаунта? <a href="{{ url_for('register') }}">Зарегистрируйтесь</a></p>
+
+      <form method="POST" action="{{ url_for('login') }}">
+        {{ csrf_field() }}
+        {% if request.values.get('next') %}
+          <input type="hidden" name="next" value="{{ request.values.get('next') }}">
+        {% endif %}
+        <div class="mb-3">
+          <label for="username" class="form-label">ИИН (логин) или email</label>
+          <input type="text" class="form-control" id="username" name="username"
+                 value="{{ username }}" autocomplete="username" required autofocus>
         </div>
+        <div class="mb-3">
+          <div class="d-flex justify-content-between align-items-baseline">
+            <label for="password" class="form-label">Пароль</label>
+            <a href="#forgot" class="small" data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="forgot">Забыли пароль?</a>
+          </div>
+          <div class="input-group">
+            <input type="password" class="form-control" id="password" name="password" autocomplete="current-password" required>
+            <button class="btn btn-light" type="button" data-toggle-password="password" aria-label="Показать пароль"><i class="bi bi-eye"></i></button>
+          </div>
+        </div>
+        <div class="collapse" id="forgot">
+          <div class="alert alert-info small">
+            Обратитесь к психологу или администратору платформы{% if support_email %}
+            (<a href="mailto:{{ support_email }}">{{ support_email }}</a>){% endif %} — вам выдадут временный пароль,
+            а при входе вы зададите новый.
+          </div>
+        </div>
+        <div class="form-check mb-4">
+          <input type="checkbox" class="form-check-input" id="remember" name="remember" value="1">
+          <label class="form-check-label" for="remember">Запомнить меня на этом устройстве</label>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 btn-lg">Войти</button>
+      </form>
     </div>
-</div>
+  </div>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('[data-toggle-password]').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    const input = document.getElementById(btn.dataset.togglePassword);
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    btn.innerHTML = show ? '<i class="bi bi-eye-slash"></i>' : '<i class="bi bi-eye"></i>';
+  });
+});
+</script>
 {% endblock %}

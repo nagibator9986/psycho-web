@@ -1,144 +1,203 @@
 {% extends "base.html" %}
 {% from '_macros.html' import avatar %}
+{% set layout = 'public' %}
 
 {% block title %}Главная{% endblock %}
 
-{% block content %}
-<section class="hero-section mb-5">
-    <div class="row align-items-center g-4">
-        <div class="col-lg-6">
-            <h1 class="display-5 fw-bold mb-3">Психологическая помощь для студентов</h1>
-            <p class="lead mb-4">
-                Поддержка профессиональных психологов, психологические тесты и сообщество,
-                где можно задать вопрос — в том числе анонимно.
-            </p>
-            <div class="d-flex gap-3 flex-wrap">
-                {% if not get_current_user() %}
-                    <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg px-4">Присоединиться</a>
-                    <a href="{{ url_for('login') }}" class="btn btn-outline-primary btn-lg px-4">Войти</a>
-                {% else %}
-                    <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-lg px-4">Личный кабинет</a>
-                {% endif %}
-                <a href="{{ url_for('emergency') }}" class="btn btn-outline-danger btn-lg px-4">Нужна помощь сейчас</a>
-            </div>
-        </div>
-        <div class="col-lg-6 text-center">
-            <picture>
-                <source srcset="{{ url_for('static', filename='images/hero.webp') }}" type="image/webp">
-                <img src="{{ url_for('static', filename='images/hero.jpg') }}" alt="Психологическая помощь"
-                     class="hero-image" width="480" height="480">
-            </picture>
-        </div>
-    </div>
-</section>
+{% block main %}
+{% set me = get_current_user() %}
+<main class="landing" id="main">
+  <div class="landing-inner">
 
-<section class="features-section mb-5">
-    <h2 class="text-center mb-4">Как мы можем помочь?</h2>
-    <div class="row g-4">
-        {% for icon, title, text in [
-            ('chat-square-text', 'Консультации', 'Переписка с психологом — открыто или анонимно, и запись на личную встречу'),
-            ('clipboard-check', 'Тесты', 'Психологические методики на русском и казахском языках'),
-            ('people', 'Сообщество', 'Форум для студентов: можно делиться опытом и задавать вопросы анонимно'),
+    <!-- HERO -->
+    <section class="hero">
+      <div>
+        <span class="hero-eyebrow"><i class="bi bi-shield-check"></i> Бесплатно · конфиденциально · можно анонимно</span>
+        <h1>Когда трудно, <span class="accent">не обязательно</span> справляться в одиночку</h1>
+        <p class="hero-lead">
+          Психологи рядом: напишите им открыто или анонимно, пройдите тест,
+          запишитесь на встречу или найдите поддержку в сообществе студентов.
+        </p>
+        <div class="hero-cta">
+          {% if me %}
+            <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-lg"><i class="bi bi-grid me-1"></i> Личный кабинет</a>
+            {% if me.role == 'student' %}
+              <a href="{{ url_for('messages') }}" class="btn btn-light btn-lg"><i class="bi bi-chat-dots me-1"></i> Написать психологу</a>
+            {% endif %}
+          {% else %}
+            <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg">Создать аккаунт</a>
+            <a href="{{ url_for('login') }}" class="btn btn-light btn-lg">Войти</a>
+          {% endif %}
+        </div>
+        <div class="trust-row">
+          <span><i class="bi bi-incognito"></i> Анонимный чат</span>
+          <span><i class="bi bi-translate"></i> Тесты на русском и казахском</span>
+          <span><i class="bi bi-lock"></i> ИИН не виден другим</span>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <picture>
+          <source srcset="{{ url_for('static', filename='images/hero.webp') }}" type="image/webp">
+          <img src="{{ url_for('static', filename='images/hero.jpg') }}" alt="Студентка разговаривает с психологом"
+               class="hero-image" width="480" height="480">
+        </picture>
+      </div>
+    </section>
+
+    <!-- HOW IT WORKS -->
+    <section class="landing-section">
+      <div class="landing-section-head">
+        <h2>Как это работает</h2>
+        <p>Три шага — и рядом есть тот, кто выслушает.</p>
+      </div>
+      <div class="row g-4">
+        {% for title, text in [
+          ('Зарегистрируйтесь', 'По ИИН и группе. Логин видите только вы и сотрудники службы.'),
+          ('Выберите, как начать', 'Пройдите тест, напишите психологу или задайте вопрос на форуме — открыто или анонимно.'),
+          ('Получите поддержку', 'Психолог ответит в сообщениях и, если нужно, пригласит на личную встречу.'),
         ] %}
         <div class="col-md-4">
-            <div class="card h-100 border-0 shadow-sm">
-                <div class="card-body text-center p-4">
-                    <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
-                         style="width: 60px; height: 60px;">
-                        <i class="bi bi-{{ icon }} fs-3"></i>
-                    </div>
-                    <h3 class="h5">{{ title }}</h3>
-                    <p class="mb-0 text-muted">{{ text }}</p>
-                </div>
-            </div>
+          <div class="feature-card">
+            <span class="step-num">{{ loop.index }}</span>
+            <h3>{{ title }}</h3>
+            <p>{{ text }}</p>
+          </div>
         </div>
         {% endfor %}
-    </div>
-</section>
+      </div>
+    </section>
 
-{% if posts %}
-<section class="latest-posts mb-5">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2 class="h3 mb-0">Последние обсуждения</h2>
-        <a href="{{ url_for('posts') }}" class="btn btn-outline-primary btn-sm">Все обсуждения</a>
-    </div>
-    <div class="row g-4">
-        {% for post in posts %}
-        <div class="col-md-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h5 class="card-title">{{ post.title }}</h5>
-                    <p class="card-text text-muted">{{ post.content|truncate(100) }}</p>
-                    <div class="d-flex align-items-center gap-2">
-                        {{ avatar(None if post.is_anonymous else post.author, 28) }}
-                        <small class="text-muted">
-                            {{ 'Аноним' if post.is_anonymous else post.author.display_name }} · {{ post.created_at|ts('%d.%m.%Y') }}
-                        </small>
-                    </div>
-                </div>
-                <div class="card-footer bg-transparent border-0">
-                    <a href="{{ url_for('view_post', post_id=post.id) }}" class="btn btn-sm btn-outline-primary">Читать</a>
-                </div>
-            </div>
+    <!-- FEATURES -->
+    <section class="landing-section">
+      <div class="landing-section-head">
+        <h2>Что есть на платформе</h2>
+        <p>Всё, чтобы вовремя заметить проблему и получить помощь.</p>
+      </div>
+      <div class="row g-4">
+        {% for icon, title, text in [
+          ('chat-heart', 'Консультации', 'Переписка с психологом. Анонимный чат — когда сложно говорить от своего имени.'),
+          ('clipboard2-pulse', 'Психологические тесты', 'Проверенные методики: тревожность, настроение, одиночество, буллинг.'),
+          ('calendar-check', 'Встречи', 'Запись на личную консультацию в удобное время прямо из чата.'),
+          ('people', 'Сообщество', 'Форум, где можно поделиться опытом и поддержать других.'),
+          ('journal-richtext', 'Статьи', 'Советы психологов про сон, стресс, учёбу и отношения.'),
+          ('life-preserver', 'Экстренная помощь', 'Телефоны доверия Казахстана — всегда на виду.'),
+        ] %}
+        <div class="col-sm-6 col-lg-4">
+          <div class="feature-card">
+            <span class="feature-icon"><i class="bi bi-{{ icon }}"></i></span>
+            <h3>{{ title }}</h3>
+            <p>{{ text }}</p>
+          </div>
         </div>
         {% endfor %}
-    </div>
-</section>
-{% endif %}
+      </div>
+    </section>
 
-{% if psychologists %}
-<section class="psychologists mb-5">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2 class="h3 mb-0">Наши психологи</h2>
-        <a href="{{ url_for('psychologists') }}" class="btn btn-outline-primary btn-sm">Все психологи</a>
-    </div>
-    <div class="row g-4">
+    <!-- SOS -->
+    <section class="landing-section pt-0">
+      <div class="sos-banner">
+        <div>
+          <h3><i class="bi bi-life-preserver"></i> Если плохо прямо сейчас</h3>
+          <p>Позвоните — это бесплатно и анонимно. Вас выслушают.</p>
+        </div>
+        <div class="sos-numbers">
+          <a href="tel:150" class="sos-number"><b>150</b> телефон доверия</a>
+          <a href="tel:111" class="sos-number"><b>111</b> защита прав детей</a>
+          <a href="tel:112" class="sos-number"><b>112</b> экстренные службы</a>
+        </div>
+      </div>
+    </section>
+
+    {% if psychologists %}
+    <!-- PSYCHOLOGISTS -->
+    <section class="landing-section">
+      <div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-4">
+        <div>
+          <h2 class="mb-1">Психологи</h2>
+          <p class="text-muted mb-0">Специалисты, которые отвечают на платформе.</p>
+        </div>
+        <a href="{{ url_for('psychologists') }}" class="btn btn-light btn-sm">Все психологи <i class="bi bi-arrow-right"></i></a>
+      </div>
+      <div class="row g-4">
         {% for psych in psychologists %}
         <div class="col-md-4">
-            <div class="card h-100">
-                <div class="card-body text-center">
-                    <div class="mb-3">{{ avatar(psych, 96) }}</div>
-                    <h5 class="card-title">{{ psych.display_name }}</h5>
-                    <p class="card-text text-muted">{{ psych.bio|truncate(100) if psych.bio else 'Психолог' }}</p>
-                    {% if is_student() %}
-                        <a href="{{ url_for('chat', contact_id=psych.id) }}" class="btn btn-sm btn-primary">Написать</a>
-                        <a href="{{ url_for('anon_chat', psychologist_id=psych.id) }}" class="btn btn-sm btn-outline-secondary">Анонимно</a>
-                    {% elif not get_current_user() %}
-                        <a href="{{ url_for('login') }}" class="btn btn-sm btn-outline-primary">Войдите, чтобы написать</a>
-                    {% endif %}
-                </div>
-            </div>
+          <div class="feature-card text-center">
+            <div class="mb-3">{{ avatar(psych, 88) }}</div>
+            <h3>{{ psych.display_name }}</h3>
+            <p class="mb-3">{{ psych.bio|truncate(110) if psych.bio else 'Психолог' }}</p>
+            {% if me and me.role == 'student' %}
+              <div class="d-flex justify-content-center gap-2">
+                <a href="{{ url_for('chat', contact_id=psych.id) }}" class="btn btn-sm btn-primary">Написать</a>
+                <a href="{{ url_for('anon_chat', psychologist_id=psych.id) }}" class="btn btn-sm btn-light"><i class="bi bi-incognito"></i> Анонимно</a>
+              </div>
+            {% elif not me %}
+              <a href="{{ url_for('login', next=url_for('psychologists')) }}" class="btn btn-sm btn-light">Войдите, чтобы написать</a>
+            {% endif %}
+          </div>
         </div>
         {% endfor %}
-    </div>
-</section>
-{% endif %}
+      </div>
+    </section>
+    {% endif %}
 
-{% if articles %}
-<section class="latest-articles">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2 class="h3 mb-0">Полезные статьи</h2>
-        <a href="{{ url_for('articles') }}" class="btn btn-outline-primary btn-sm">Все статьи</a>
-    </div>
-    <div class="row g-4">
+    {% if posts %}
+    <!-- FORUM -->
+    <section class="landing-section">
+      <div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-4">
+        <h2 class="mb-0">Последние обсуждения</h2>
+        <a href="{{ url_for('posts') }}" class="btn btn-light btn-sm">Форум <i class="bi bi-arrow-right"></i></a>
+      </div>
+      <div class="row g-4">
+        {% for post in posts %}
+        <div class="col-md-4">
+          <a href="{{ url_for('view_post', post_id=post.id) }}" class="feature-card d-block text-decoration-none text-reset">
+            <h3>{{ post.title|truncate(70) }}</h3>
+            <p class="mb-3">{{ post.content|truncate(110) }}</p>
+            <div class="d-flex align-items-center gap-2 small text-muted">
+              {{ avatar(None if post.is_anonymous else post.author, 26) }}
+              {{ 'Аноним' if post.is_anonymous else post.author.display_name }} · {{ post.created_at|ts('%d.%m.%Y') }}
+            </div>
+          </a>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    {% if articles %}
+    <!-- ARTICLES -->
+    <section class="landing-section">
+      <div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-4">
+        <h2 class="mb-0">Полезные статьи</h2>
+        <a href="{{ url_for('articles') }}" class="btn btn-light btn-sm">Все статьи <i class="bi bi-arrow-right"></i></a>
+      </div>
+      <div class="row g-4">
         {% for article in articles %}
         <div class="col-md-4">
-            <div class="card h-100">
-                {% if article.image_url %}
-                    <img src="{{ url_for('static', filename='uploads/' + article.image_url) }}" class="card-img-top object-fit-cover"
-                         style="height: 180px;" alt="" loading="lazy">
-                {% endif %}
-                <div class="card-body">
-                    <h5 class="card-title">{{ article.title }}</h5>
-                    <p class="card-text text-muted">{{ article.content|truncate(100) }}</p>
-                </div>
-                <div class="card-footer bg-transparent border-0">
-                    <a href="{{ url_for('view_article', article_id=article.id) }}" class="btn btn-sm btn-outline-primary">Читать</a>
-                </div>
+          <a href="{{ url_for('view_article', article_id=article.id) }}" class="card h-100 text-decoration-none text-reset overflow-hidden">
+            {% if article.image_url %}
+              <img src="{{ url_for('static', filename='uploads/' + article.image_url) }}" class="card-img-top object-fit-cover" style="height: 170px;" alt="" loading="lazy">
+            {% endif %}
+            <div class="card-body">
+              <h3 class="h6 mb-2">{{ article.title }}</h3>
+              <p class="text-muted small mb-0">{{ article.content|truncate(120) }}</p>
             </div>
+          </a>
         </div>
         {% endfor %}
-    </div>
-</section>
-{% endif %}
+      </div>
+    </section>
+    {% endif %}
+
+    {% if not me %}
+    <section class="landing-section">
+      <div class="cta-panel">
+        <h2>Начните с малого</h2>
+        <p class="mb-4">Регистрация займёт минуту. Писать психологу можно анонимно.</p>
+        <a href="{{ url_for('register') }}" class="btn btn-light btn-lg">Создать аккаунт</a>
+      </div>
+    </section>
+    {% endif %}
+  </div>
+</main>
 {% endblock %}

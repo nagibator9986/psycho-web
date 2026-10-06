@@ -15,6 +15,7 @@ from extensions import db
 COLUMNS = [
     ('user', 'group_id', 'INTEGER'),
     ('user', 'must_change_password', 'BOOLEAN NOT NULL DEFAULT 0'),
+    ('user', 'privacy_accepted_at', 'DATETIME'),
     ('post', 'is_anonymous', 'BOOLEAN NOT NULL DEFAULT 0'),
     ('test', 'title_kk', 'VARCHAR(200)'),
     ('test', 'description_kk', 'TEXT'),

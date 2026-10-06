@@ -1,15 +1,14 @@
 {% extends "base.html" %}
-{% from '_macros.html' import empty %}
+{% from '_macros.html' import empty, page_header %}
 
 {% block title %}Статьи{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="h3 mb-0">Полезные статьи</h1>
+{% call page_header('Полезные статьи', 'Советы психологов про стресс, сон, учёбу и отношения.') %}
     {% if is_psychologist() %}
         <a href="{{ url_for('create_article') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Добавить статью</a>
     {% endif %}
-</div>
+{% endcall %}
 
 {% if articles %}
     <div class="row g-4">

@@ -7,6 +7,7 @@
 {% set me = get_current_user() %}
 <div class="card chat-window">
     <div class="card-header d-flex align-items-center gap-2">
+        <a href="{{ url_for('messages') }}" class="icon-btn d-md-none" aria-label="К списку диалогов"><i class="bi bi-arrow-left"></i></a>
         {{ avatar(avatar_user, 36) }}
         <div class="flex-grow-1">
             <div class="fw-semibold">

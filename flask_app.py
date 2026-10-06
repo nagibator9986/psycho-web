@@ -288,13 +288,31 @@ def _fmt_when(value, fmt='%d.%m.%Y %H:%M'):
     return value.strftime(fmt) if value else ''
 
 
-app.jinja_env.filters.update(ts=_fmt_ts, when=_fmt_when)
+def asset_url(filename: str) -> str:
+    """Ссылка на статический файл с версией по времени изменения — браузер не держит старый CSS."""
+    try:
+        version = int(os.path.getmtime(os.path.join(app.static_folder, filename)))
+    except OSError:
+        version = 0
+    return url_for('static', filename=filename, v=version)
+
+
+def _greeting_name(user) -> str:
+    """Имя для приветствия: из «Фамилия Имя Отчество» — имя, иначе как записано."""
+    parts = (user.full_name or '').split()
+    if len(parts) >= 3:
+        return parts[1]
+    return user.display_name
+
+
+app.jinja_env.filters.update(ts=_fmt_ts, when=_fmt_when, greeting_name=_greeting_name)
 app.jinja_env.globals.update(
     get_current_user=get_current_user,
     is_psychologist=is_psychologist,
     is_student=is_student,
     is_admin_user=is_admin_user,
     now_local=now_local,
+    asset_url=asset_url,
     APPOINTMENT_STATUSES=APPOINTMENT_STATUSES,
     QUESTION_TYPES=QUESTION_TYPES,
     TEST_TYPES=TEST_TYPES,
@@ -487,6 +505,8 @@ def register():
             error = 'Этот email уже используется'
         elif not db.session.get(Group, form['group_id']):
             error = 'Выбранная группа не найдена'
+        elif not request.form.get('accept_privacy'):
+            error = 'Нужно согласие на обработку персональных данных'
 
         if error:
             flash(error, 'danger')
@@ -498,6 +518,7 @@ def register():
                 role='student',
                 full_name=form['full_name'],
                 group_id=form['group_id'],
+                privacy_accepted_at=datetime.utcnow(),
             )
             db.session.add(new_user)
             db.session.commit()
@@ -2177,6 +2198,16 @@ def search():
 @app.route('/emergency')
 def emergency():
     return render_template('emergency.html')
+
+
+@app.route('/privacy')
+def privacy():
+    return render_template('privacy.html')
+
+
+@app.route('/favicon.ico')
+def favicon():
+    return redirect(url_for('static', filename='images/favicon.svg'), code=301)
 
 
 @app.route('/api/messages/unread_count')

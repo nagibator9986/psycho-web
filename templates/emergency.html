@@ -3,74 +3,76 @@
 {% block title %}Экстренная помощь{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-9">
-        <div class="card border-danger mb-4">
-            <div class="card-header bg-danger text-white">
-                <h1 class="h3 mb-0">Экстренная психологическая помощь</h1>
-            </div>
-            <div class="card-body">
-                <div class="alert alert-danger">
-                    <h5 class="alert-heading"><i class="bi bi-exclamation-octagon me-2"></i>Если есть угроза жизни — звоните сразу</h5>
-                    <div class="d-flex flex-wrap gap-2 mt-2">
-                        <a href="tel:112" class="btn btn-danger btn-lg"><i class="bi bi-telephone-fill"></i> 112 — экстренные службы</a>
-                        <a href="tel:103" class="btn btn-outline-danger btn-lg"><i class="bi bi-telephone"></i> 103 — скорая помощь</a>
-                    </div>
-                </div>
-
-                <h5 class="mt-4 mb-3">Бесплатные телефоны доверия в Казахстане</h5>
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <div class="stat-tile">
-                            <a href="tel:150" class="stat-value text-decoration-none">150</a>
-                            <div class="fw-semibold mt-1">Национальный телефон доверия для детей и молодёжи</div>
-                            <div class="small text-muted">
-                                Анонимно, бесплатно. Можно написать в WhatsApp:
-                                <a href="https://wa.me/77081060810" target="_blank" rel="noopener">+7 708 106 08 10</a>.
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="stat-tile">
-                            <a href="tel:111" class="stat-value text-decoration-none">111</a>
-                            <div class="fw-semibold mt-1">Единый контакт-центр по вопросам семьи и защиты прав детей</div>
-                            <div class="small text-muted">
-                                Круглосуточно, бесплатно, конфиденциально. Насилие, буллинг, угроза жизни и здоровью.
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {% if support_phone or support_email %}
-                <div class="alert alert-primary mt-4 mb-0">
-                    <h5 class="alert-heading">Психологическая служба{% if org_name %} — {{ org_name }}{% endif %}</h5>
-                    {% if support_phone %}<div><i class="bi bi-telephone me-1"></i> {{ support_phone }}</div>{% endif %}
-                    {% if support_email %}<div><i class="bi bi-envelope me-1"></i> <a href="mailto:{{ support_email }}">{{ support_email }}</a></div>{% endif %}
-                </div>
-                {% endif %}
-
-                <div class="alert alert-warning mt-4">
-                    <h5><i class="bi bi-chat-dots me-2"></i>Написать психологу на платформе</h5>
-                    <ol class="mb-0">
-                        <li>Откройте <a href="{{ url_for('messages') }}" class="alert-link">сообщения</a> — можно выбрать <b>анонимный чат</b>, тогда психолог не увидит ваше имя.</li>
-                        <li>Напишите, что вам нужна срочная помощь.</li>
-                        <li>Психолог ответит, как только сможет. Если ждать нельзя — звоните по телефонам выше.</li>
-                    </ol>
-                </div>
-
-                <div class="alert alert-info">
-                    <h5><i class="bi bi-heart me-2"></i>Помните</h5>
-                    <p class="mb-0">Вы не одиноки. Обратиться за помощью — это признак силы, а не слабости.
-                        Если плохо кому-то рядом с вами — побудьте с этим человеком и помогите ему позвонить.</p>
-                </div>
-
-                <div class="text-center mt-4 d-flex justify-content-center gap-2 flex-wrap">
-                    <a href="{{ url_for('messages') }}" class="btn btn-danger btn-lg"><i class="bi bi-chat-dots"></i> Написать психологу</a>
-                    <a href="{{ url_for('psychologists') }}" class="btn btn-outline-danger btn-lg"><i class="bi bi-people"></i> Наши психологи</a>
-                </div>
-            </div>
-        </div>
-        <p class="small text-muted">Номера проверены в октябре 2026 г. Режим работы линии 150 может меняться — если не дозвонились, звоните 111 или 112.</p>
+<div class="mx-auto" style="max-width: 900px;">
+  <div class="page-head">
+    <div>
+      <h1><i class="bi bi-life-preserver text-danger"></i> Экстренная помощь</h1>
+      <p class="page-sub">Если вам или кому-то рядом сейчас плохо — вы не одни. Вот куда можно обратиться.</p>
     </div>
+  </div>
+
+  <div class="sos-banner mb-4">
+    <div>
+      <h3><i class="bi bi-exclamation-octagon"></i> Есть угроза жизни?</h3>
+      <p>Звоните сразу — звонок бесплатный, в том числе без денег на счёте.</p>
+    </div>
+    <div class="sos-numbers">
+      <a href="tel:112" class="sos-number"><b>112</b> экстренные службы</a>
+      <a href="tel:103" class="sos-number"><b>103</b> скорая помощь</a>
+    </div>
+  </div>
+
+  <div class="section-title"><i class="bi bi-telephone"></i> Телефоны доверия в Казахстане</div>
+  <div class="row g-3 mb-4">
+    <div class="col-md-6">
+      <div class="feature-card">
+        <a href="tel:150" class="d-inline-flex align-items-baseline gap-2 text-decoration-none mb-2">
+          <span class="stat-value text-primary">150</span><span class="badge text-bg-primary">бесплатно · анонимно</span>
+        </a>
+        <h3>Национальный телефон доверия для детей и молодёжи</h3>
+        <p>Можно написать в WhatsApp: <a href="https://wa.me/77081060810" target="_blank" rel="noopener">+7 708 106 08 10</a>.</p>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="feature-card">
+        <a href="tel:111" class="d-inline-flex align-items-baseline gap-2 text-decoration-none mb-2">
+          <span class="stat-value text-primary">111</span><span class="badge text-bg-primary">круглосуточно</span>
+        </a>
+        <h3>Контакт-центр по вопросам семьи и защиты прав детей</h3>
+        <p>Насилие, буллинг, угроза жизни и здоровью. Конфиденциально.</p>
+      </div>
+    </div>
+  </div>
+
+  {% if support_phone or support_email %}
+  <div class="alert alert-primary mb-4">
+    <div class="alert-heading mb-1">Психологическая служба{% if org_name %} — {{ org_name }}{% endif %}</div>
+    {% if support_phone %}<div><i class="bi bi-telephone me-1"></i> <a href="tel:{{ support_phone }}">{{ support_phone }}</a></div>{% endif %}
+    {% if support_email %}<div><i class="bi bi-envelope me-1"></i> <a href="mailto:{{ support_email }}">{{ support_email }}</a></div>{% endif %}
+  </div>
+  {% endif %}
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-6">
+      <div class="feature-card">
+        <span class="feature-icon"><i class="bi bi-chat-heart"></i></span>
+        <h3>Написать психологу на платформе</h3>
+        <p class="mb-3">Можно выбрать анонимный чат — психолог не увидит ваше имя. Если ждать нельзя, звоните по телефонам выше.</p>
+        <a href="{{ url_for('messages') }}" class="btn btn-primary btn-sm">Открыть сообщения</a>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="feature-card">
+        <span class="feature-icon"><i class="bi bi-people"></i></span>
+        <h3>Если плохо кому-то рядом</h3>
+        <p class="mb-0">Побудьте с человеком, выслушайте без оценок и помогите ему позвонить. Не оставляйте одного, если есть угроза жизни.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="alert alert-info mb-2">
+    <b>Вы не одиноки.</b> Обратиться за помощью — это признак силы, а не слабости.
+  </div>
+  <p class="small text-muted mb-0">Номера проверены в октябре 2026 г. Режим работы линии 150 может меняться — если не дозвонились, звоните 111 или 112.</p>
 </div>
 {% endblock %}

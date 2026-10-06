@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="row g-4 chat-layout">
-    <div class="col-md-4">
+    <div class="col-md-4 {% if active_url %}d-none d-md-block{% endif %}">
         <div class="card h-100">
             <div class="card-header"><h5 class="mb-0">Диалоги</h5></div>
             <div class="list-group list-group-flush chat-contacts">

@@ -1,11 +1,12 @@
 {% extends "base.html" %}
+{% from '_macros.html' import page_header %}
 
 {% block title %}Студенты{% endblock %}
 
 {% block content %}
+{{ page_header('Студенты', students|length ~ ' студентов · карточка, переписка, встречи и отчёты') }}
 <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
-  <h1 class="h3 mb-0">Студенты <span class="text-muted fs-6">({{ students|length }})</span></h1>
-  <div class="d-flex flex-wrap gap-2">
+  <div class="d-flex flex-wrap gap-2 w-100">
     <div class="input-group" style="max-width: 320px;">
       <span class="input-group-text"><i class="bi bi-search"></i></span>
       <input id="searchInput" type="search" class="form-control" placeholder="ФИО, ИИН, email, группа">

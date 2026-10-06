@@ -1,11 +1,12 @@
 {% extends "base.html" %}
+{% from '_macros.html' import page_header %}
 
 {% block title %}Создание теста{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
   <div class="col-lg-9">
-    <h1 class="h3 mb-4">Создание теста</h1>
+    {{ page_header('Новый тест', 'Название и описание на русском и казахском. Вопросы добавите на следующем шаге.') }}
 
     <form method="POST" action="{{ url_for('create_test') }}">
       {{ csrf_field() }}
