@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card shadow-sm mt-4">
+      <div class="card-body p-4 text-center">
+        <h3 class="mb-3">Выбор языка теста</h3>
+        <p class="mb-4">
+          Тест: {{ test.title }}{% if test.title_kk %} / {{ test.title_kk }}{% endif %}
+        </p>
+        <div class="d-flex flex-column gap-2">
+          <a href="{{ url_for('take_test', test_id=test.id, lang='ru') }}" class="btn btn-primary btn-lg">
+            Проходить на русском
+          </a>
+          <a href="{{ url_for('take_test', test_id=test.id, lang='kk') }}" class="btn btn-outline-primary btn-lg">
+            Тестті қазақ тілінде өту
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-body p-5">
+                <h2 class="card-title text-center mb-4">Редактирование профиля</h2>
+                <form method="POST" action="{{ url_for('edit_profile') }}" enctype="multipart/form-data">
+                    <div class="mb-3 text-center">
+                        {% if user.profile_pic %}
+                            <img src="{{ url_for('static', filename='uploads/' + user.profile_pic) }}" class="rounded-circle mb-3" width="150" height="150" id="profile-pic-preview">
+                        {% else %}
+                            <div class="rounded-circle bg-secondary mb-3 mx-auto" style="width: 150px; height: 150px;" id="profile-pic-preview"></div>
+                        {% endif %}
+                        <input type="file" class="form-control" id="profile_pic" name="profile_pic" accept="image/*" onchange="previewImage(this)">
+                        <label for="profile_pic" class="form-label mt-2">Фото профиля</label>
+                    </div>
+                    <div class="mb-3">
+                        <label for="full_name" class="form-label">Полное имя</label>
+                        <input type="text" class="form-control" id="full_name" name="full_name" value="{{ user.full_name if user.full_name }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="bio" class="form-label">О себе</label>
+                        <textarea class="form-control" id="bio" name="bio" rows="3">{{ user.bio if user.bio }}</textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 py-2">Сохранить изменения</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function previewImage(input) {
+    const preview = document.getElementById('profile-pic-preview');
+    const file = input.files[0];
+    const reader = new FileReader();
+    
+    reader.onloadend = function() {
+        preview.style.backgroundImage = 'url(' + reader.result + ')';
+        preview.style.backgroundSize = 'cover';
+        preview.style.backgroundPosition = 'center';
+    }
+    
+    if (file) {
+        reader.readAsDataURL(file);
+    }
+}
+</script>
+{% endblock %}

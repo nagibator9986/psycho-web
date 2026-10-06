@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Тесты для студентов{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <h1 class="mb-4">Доступные тесты</h1>
+
+    {% if tests %}
+        <div class="row">
+            {% for test in tests %}
+            <div class="col-md-4 mb-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ test.title }}</h5>
+                        <p class="card-text text-muted">
+                            Создан: {{ test.created_at.strftime('%d.%m.%Y') }}<br>
+                            Автор: {{ test.creator.full_name or test.creator.username }}
+                        </p>
+                    </div>
+                    <div class="card-footer bg-transparent border-0">
+                        {% if test.id in completed_test_ids %}
+                            <span class="text-success">Пройден</span>
+                        {% else %}
+                            <a href="{{ url_for('take_test', test_id=test.id) }}" class="btn btn-primary btn-sm">Пройти тест</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info text-center">
+            Пока нет доступных тестов.
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Контакты</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for conv in conversations %}
+                    <a href="{{ url_for('chat', contact_id=conv.contact.id) }}" class="list-group-item list-group-item-action {% if request.path == url_for('chat', contact_id=conv.contact.id) %}active{% endif %}">
+                        <div class="d-flex align-items-center">
+                            {% if conv.contact.profile_pic %}
+                                <img src="{{ url_for('static', filename='uploads/' + conv.contact.profile_pic) }}" class="rounded-circle me-2" width="40" height="40">
+                            {% else %}
+                                <div class="rounded-circle bg-secondary me-2" style="width: 40px; height: 40px;"></div>
+                            {% endif %}
+                            <div>
+                                <h6 class="mb-0">{{ conv.contact.full_name if conv.contact.full_name else conv.contact.username }}</h6>
+                                <small class="text-muted {% if request.path == url_for('chat', contact_id=conv.contact.id) %}text-white{% endif %}">
+                                    {{ conv.last_message.content|truncate(30) }}
+                                </small>
+                            </div>
+                            {% if conv.unread_count > 0 and request.path != url_for('chat', contact_id=conv.contact.id) %}
+                                <span class="badge bg-danger ms-auto">{{ conv.unread_count }}</span>
+                            {% endif %}
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-8">
+        {% if request.path == '/messages' %}
+            <div class="card h-100">
+                <div class="card-body d-flex align-items-center justify-content-center">
+                    <div class="text-center">
+                        <i class="bi bi-chat-square-text fs-1 text-muted mb-3"></i>
+                        <h4>Выберите чат для общения</h4>
+                        <p class="text-muted">Начните диалог с {% if is_psychologist() %}студентом{% else %}психологом{% endif %}</p>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            {% block chat %}{% endblock %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Создать отчет - {{ student.username }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    {% extends "base.html" %}
+    {% block content %}
+    <div class="container mt-5">
+        <h1 class="mb-4">Создать отчет для {{ student.full_name or student.username }}</h1>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('create_report', student_id=student.id) }}">
+            <div class="mb-3">
+                <label for="academic_performance" class="form-label">Учебная успеваемость</label>
+                <textarea class="form-control" id="academic_performance" name="academic_performance" rows="3"></textarea>
+            </div>
+            <div class="mb-3">
+                <label for="emotional_state" class="form-label">Эмоциональное состояние</label>
+                <textarea class="form-control" id="emotional_state" name="emotional_state" rows="3"></textarea>
+            </div>
+            <div class="mb-3">
+                <label for="social_interaction" class="form-label">Социальное взаимодействие</label>
+                <textarea class="form-control" id="social_interaction" name="social_interaction" rows="3"></textarea>
+            </div>
+            <div class="mb-3">
+                <label for="stress_level" class="form-label">Уровень стресса</label>
+                <textarea class="form-control" id="stress_level" name="stress_level" rows="3"></textarea>
+            </div>
+            <div class="mb-3">
+                <label for="sleep_quality" class="form-label">Качество сна</label>
+                <textarea class="form-control" id="sleep_quality" name="sleep_quality" rows="3"></textarea>
+            </div>
+            <div class="mb-3">
+                <label for="motivation" class="form-label">Мотивация</label>
+                <textarea class="form-control" id="motivation" name="motivation" rows="3"></textarea>
+            </div>
+            <div class="mb-3">
+                <label for="behavior_patterns" class="form-label">Поведенческие паттерны</label>
+                <textarea class="form-control" id="behavior_patterns" name="behavior_patterns" rows="3"></textarea>
+            </div>
+            <div class="mb-3">
+                <label for="recommendations" class="form-label">Рекомендации</label>
+                <textarea class="form-control" id="recommendations" name="recommendations" rows="3"></textarea>
+            </div>
+            <div class="mb-3">
+                <label for="additional_notes" class="form-label">Дополнительные заметки</label>
+                <textarea class="form-control" id="additional_notes" name="additional_notes" rows="3"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Создать отчет</button>
+            <a href="{{ url_for('student_analytics', student_id=student.id) }}" class="btn btn-secondary">Отмена</a>
+        </form>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% endblock %}
+</body>
+</html>

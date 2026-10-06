@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-8">
+    <div class="card shadow-sm">
+      <div class="card-body p-5">
+        <h2 class="card-title text-center mb-4">Создание теста</h2>
+
+        <form method="POST" action="{{ url_for('create_test') }}">
+          <div class="mb-3">
+            <label class="form-label">Тип теста</label>
+            <select class="form-select" name="test_type" required>
+              <option value="classic">Обычный тест</option>
+              <option value="scale">Шкаловая методика (общие варианты ответов)</option>
+            </select>
+            <div class="form-text">
+              Обычный тест — у каждого вопроса свои варианты. Шкаловая методика — все вопросы используют один и тот же набор ответов (например: всегда/часто/иногда/никогда).
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6">
+              <h5>Русский</h5>
+              <div class="mb-3">
+                <label for="title" class="form-label">Название теста (RU)</label>
+                <input type="text" class="form-control" id="title" name="title">
+              </div>
+              <div class="mb-3">
+                <label for="description" class="form-label">Описание (RU)</label>
+                <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <h5>Қазақша</h5>
+              <div class="mb-3">
+                <label for="title_kk" class="form-label">Тест атауы (KZ)</label>
+                <input type="text" class="form-control" id="title_kk" name="title_kk">
+              </div>
+              <div class="mb-3">
+                <label for="description_kk" class="form-label">Сипаттамасы (KZ)</label>
+                <textarea class="form-control" id="description_kk" name="description_kk" rows="3"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary w-100 py-2 mt-3">Создать тест</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

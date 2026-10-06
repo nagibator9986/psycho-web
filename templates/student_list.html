@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block title %}Список студентов{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+  <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
+    <h1 class="mb-0">Список студентов</h1>
+    <div class="ms-auto d-flex flex-wrap gap-2">
+      <div class="input-group">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input id="searchInput" type="text" class="form-control" placeholder="Поиск по имени, логину, e‑mail, группе...">
+      </div>
+      <div class="input-group" style="min-width: 240px;">
+        <span class="input-group-text"><i class="bi bi-people"></i></span>
+        <select id="groupFilter" class="form-select">
+          <option value="">Все группы</option>
+        </select>
+      </div>
+      <div class="btn-group">
+        <button id="sortGroupBtn" class="btn btn-outline-primary" data-sort="asc" title="Сортировать по группе">
+          <i class="bi bi-sort-alpha-down"></i> Группа
+        </button>
+        <button id="sortDateBtn" class="btn btn-outline-secondary" data-sort="desc" title="Сортировать по дате регистрации">
+          <i class="bi bi-sort-down"></i> Дата
+        </button>
+      </div>
+    </div>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+  {% endwith %}
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-striped table-hover mb-0" id="studentsTable">
+          <thead class="table-dark">
+            <tr>
+              <th scope="col" style="width:72px">#</th>
+              <th scope="col">Имя пользователя</th>
+              <th scope="col">Полное имя</th>
+              <th scope="col">Группа</th>
+              <th scope="col">Дата регистрации</th>
+              <th scope="col" style="width:280px">Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for student in students %}
+            {% set group_name = (student.group.name if student.group else '—') %}
+            <tr data-group="{{ group_name }}">
+              <th scope="row">{{ loop.index }}</th>
+              <td class="cell-login">{{ student.username }}</td>
+              <td class="cell-name">{{ student.full_name or 'Не указано' }}</td>
+              <td class="cell-group"><span class="badge bg-light text-dark border">{{ group_name }}</span></td>
+              <td class="cell-date">{{ student.created_at.strftime('%d.%m.%Y %H:%M') if student.created_at else '' }}</td>
+              <td>
+                <a href="{{ url_for('student_analytics', student_id=student.id) }}" class="btn btn-primary btn-sm me-2">
+                  <i class="bi bi-graph-up"></i> Аналитика
+                </a>
+                <a href="{{ url_for('create_report', student_id=student.id) }}" class="btn btn-success btn-sm">
+                  <i class="bi bi-file-earmark-text"></i> Отчёт
+                </a>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="6" class="text-center py-4">Студенты не найдены</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="text-muted small mt-2" id="resultCounter"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // --- helpers ---
+  function parseRusDate(s){
+    if(!s) return 0; // push empty to bottom
+    const m = s.match(/(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
+    if(!m) return 0;
+    const [_, dd, mm, yyyy, HH='00', MM='00'] = m;
+    return new Date(+yyyy, +mm-1, +dd, +HH, +MM).getTime();
+  }
+
+  const table = document.getElementById('studentsTable');
+  const tbody = table.querySelector('tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+
+  // Build group options
+  const groupSet = new Set();
+  rows.forEach(r => { const g = (r.getAttribute('data-group')||'').trim(); if(g) groupSet.add(g); });
+  const groupFilter = document.getElementById('groupFilter');
+  Array.from(groupSet).sort((a,b)=>a.localeCompare(b,'ru')).forEach(g => {
+    const opt = document.createElement('option');
+    opt.value = g; opt.textContent = g; groupFilter.appendChild(opt);
+  });
+
+  const searchInput = document.getElementById('searchInput');
+  const resultCounter = document.getElementById('resultCounter');
+
+  function applyFilters(){
+    const q = searchInput.value.trim().toLowerCase();
+    const g = groupFilter.value;
+    let shown = 0;
+    rows.forEach(row => {
+      // if placeholder row (no data-group, no cells), keep
+      const rowGroup = row.getAttribute('data-group') || '';
+      const text = row.innerText.toLowerCase();
+      const okGroup = !g || rowGroup === g;
+      const okSearch = !q || text.indexOf(q) !== -1;
+      const visible = okGroup && okSearch;
+      row.style.display = visible ? '' : 'none';
+      if(visible) shown++;
+    });
+    resultCounter.textContent = `Показано: ${shown} из ${rows.length}`;
+  }
+
+  // Sorting
+  function sortByGroup(direction){
+    const sorted = rows.slice().sort((a,b)=>{
+      const ga = (a.getAttribute('data-group')||'');
+      const gb = (b.getAttribute('data-group')||'');
+      const cmp = ga.localeCompare(gb,'ru');
+      return direction === 'asc' ? cmp : -cmp;
+    });
+    sorted.forEach(r => tbody.appendChild(r));
+  }
+
+  function sortByDate(direction){
+    const sorted = rows.slice().sort((a,b)=>{
+      const da = parseRusDate(a.querySelector('.cell-date')?.textContent.trim());
+      const db = parseRusDate(b.querySelector('.cell-date')?.textContent.trim());
+      return direction === 'asc' ? (da - db) : (db - da);
+    });
+    sorted.forEach(r => tbody.appendChild(r));
+  }
+
+  document.getElementById('sortGroupBtn').addEventListener('click', function(){
+    const cur = this.getAttribute('data-sort');
+    const next = cur === 'asc' ? 'desc' : 'asc';
+    this.setAttribute('data-sort', next);
+    this.innerHTML = (next === 'asc' ? '<i class="bi bi-sort-alpha-down"></i>' : '<i class="bi bi-sort-alpha-up"></i>') + ' Группа';
+    sortByGroup(next);
+    applyFilters();
+  });
+
+  document.getElementById('sortDateBtn').addEventListener('click', function(){
+    const cur = this.getAttribute('data-sort');
+    const next = cur === 'asc' ? 'desc' : 'asc';
+    this.setAttribute('data-sort', next);
+    this.innerHTML = (next === 'asc' ? '<i class="bi bi-sort-up"></i>' : '<i class="bi bi-sort-down"></i>') + ' Дата';
+    sortByDate(next);
+    applyFilters();
+  });
+
+  searchInput.addEventListener('input', applyFilters);
+  groupFilter.addEventListener('change', applyFilters);
+
+  // init
+  sortByDate('desc');
+  applyFilters();
+</script>
+{% endblock %}

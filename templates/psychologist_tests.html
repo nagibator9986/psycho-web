@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Мои тесты</h1>
+        <a href="{{ url_for('create_test') }}" class="btn btn-primary">Создать тест</a>
+    </div>
+
+    <!-- Добавляем статистику -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Статистика</h5>
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="mb-2"><strong>Всего студентов в системе:</strong> {{ total_students }}</p>
+                </div>
+                <div class="col-md-6">
+                    <p class="mb-2"><strong>Всего результатов моих тестов:</strong> {{ total_results }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            {% if tests %}
+                <div class="list-group">
+                    {% for test in tests %}
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="mb-1">{{ test.title }}</h5>
+                                <p class="mb-1 text-muted">{{ test.description }}</p>
+                                <small class="text-muted">
+                                    Создан {{ test.created_at.strftime('%d.%m.%Y') }} · 
+                                    {{ test.questions|length }} вопросов · 
+                                    Статус: {% if test.is_active %}<span class="text-success">Активен</span>{% else %}<span class="text-secondary">Неактивен</span>{% endif %}
+                                </small>
+                            </div>
+                            <div>
+                                <a href="{{ url_for('add_questions', test_id=test.id) }}" class="btn btn-sm btn-outline-secondary me-1">Вопросы</a>
+                                <a href="{{ url_for('edit_test', test_id=test.id) }}" class="btn btn-sm btn-outline-primary me-1">Редактировать</a>
+                                                                <a href="{{ url_for('download_test_results', test_id=test.id) }}" 
+                                   class="btn btn-sm btn-outline-success">
+                                   📄 Выгрузить результаты
+                                </a>
+
+                                <form action="{{ url_for('delete_test', test_id=test.id) }}" method="POST" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Вы уверены, что хотите удалить тест?');">Удалить</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    Вы еще не создали ни одного теста. <a href="{{ url_for('create_test') }}" class="alert-link">Создайте первый тест</a>.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

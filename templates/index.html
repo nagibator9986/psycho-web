@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero-section bg-light py-5 mb-5">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6">
+                <h1 class="display-4 fw-bold mb-4">Психологическая помощь для студентов</h1>
+                <p class="lead mb-4">Получите поддержку от профессиональных психологов, пройдите тесты и найдите ответы на свои вопросы в нашем сообществе.</p>
+                <div class="d-flex gap-3">
+                    {% if 'user_id' not in session %}
+                        <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg px-4">Присоединиться</a>
+                        <a href="{{ url_for('login') }}" class="btn btn-outline-primary btn-lg px-4">Войти</a>
+                    {% else %}
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-lg px-4">Личный кабинет</a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-lg-6">
+               <img src="{{ url_for('static', filename='images/image.png') }}" alt="Психологическая помощь" class="img-fluid rounded" width="400px" height="300px">
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="features-section mb-5">
+    <div class="container">
+        <h2 class="text-center mb-5">Как мы можем помочь?</h2>
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon bg-primary bg-opacity-10 text-primary rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                            <i class="bi bi-chat-square-text fs-3"></i>
+                        </div>
+                        <h3>Консультации</h3>
+                        <p>Анонимные и открытые чаты с профессиональными психологами</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon bg-primary bg-opacity-10 text-primary rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                            <i class="bi bi-clipboard-check fs-3"></i>
+                        </div>
+                        <h3>Тесты</h3>
+                        <p>Пройдите психологические тесты и получите персональные рекомендации</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon bg-primary bg-opacity-10 text-primary rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                            <i class="bi bi-people fs-3"></i>
+                        </div>
+                        <h3>Сообщество</h3>
+                        <p>Общайтесь с другими студентами и делитесь опытом</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="latest-posts mb-5">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Последние обсуждения</h2>
+            <a href="{{ url_for('posts') }}" class="btn btn-outline-primary">Все обсуждения</a>
+        </div>
+        <div class="row g-4">
+            {% for post in posts %}
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ post.title }}</h5>
+                        <p class="card-text text-muted">{{ post.content|truncate(100) }}</p>
+                        <div class="d-flex align-items-center">
+                            {% if post.author.profile_pic %}
+                                <img src="{{ url_for('static', filename='uploads/' + post.author.profile_pic) }}" class="rounded-circle me-2" width="30" height="30">
+                            {% else %}
+                                <div class="rounded-circle bg-secondary me-2" style="width: 30px; height: 30px;"></div>
+                            {% endif %}
+                            <small class="text-muted">{{ post.author.username }} · {{ post.created_at.strftime('%d.%m.%Y') }}</small>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent border-0">
+                        <a href="{{ url_for('view_post', post_id=post.id) }}" class="btn btn-sm btn-outline-primary">Читать</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<section class="psychologists mb-5">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Наши психологи</h2>
+            <a href="{{ url_for('search') }}?q=" class="btn btn-outline-primary">Все психологи</a>
+        </div>
+        <div class="row g-4">
+            {% for psych in psychologists %}
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        {% if psych.profile_pic %}
+                            <img src="{{ url_for('static', filename='uploads/' + psych.profile_pic) }}" class="rounded-circle mb-3" width="100" height="100">
+                        {% else %}
+                            <div class="rounded-circle bg-secondary mb-3 mx-auto" style="width: 100px; height: 100px;"></div>
+                        {% endif %}
+                        <h5 class="card-title">{{ psych.full_name if psych.full_name else psych.username }}</h5>
+                        <p class="card-text text-muted">{{ psych.bio|truncate(100) if psych.bio else "Профессиональный психолог" }}</p>
+                        <a href="{{ url_for('profile', username=psych.username) }}" class="btn btn-sm btn-outline-primary">Профиль</a>
+                        <a href="{{ url_for('chat', contact_id=psych.id) }}" class="btn btn-sm btn-primary ms-2">Написать</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<section class="latest-articles">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Полезные статьи</h2>
+            <a href="{{ url_for('articles') }}" class="btn btn-outline-primary">Все статьи</a>
+        </div>
+        <div class="row g-4">
+            {% for article in articles %}
+            <div class="col-md-4">
+                <div class="card h-100">
+                    {% if article.image_url %}
+                        <img src="{{ url_for('static', filename='uploads/' + article.image_url) }}" class="card-img-top" alt="{{ article.title }}">
+                    {% endif %}
+                    <div class="card-body">
+                        <h5 class="card-title">{{ article.title }}</h5>
+                        <p class="card-text text-muted">{{ article.content|truncate(100) }}</p>
+                    </div>
+                    <div class="card-footer bg-transparent border-0">
+                        <a href="{{ url_for('view_article', article_id=article.id) }}" class="btn btn-sm btn-outline-primary">Читать</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endblock %}

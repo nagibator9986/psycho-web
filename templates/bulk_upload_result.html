@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Результаты импорта</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:24px}
+    .ok{color:#0a7} .warn{color:#a70} .err{color:#c00}
+    table{border-collapse:collapse;width:100%}
+    th,td{border:1px solid #ddd;padding:8px} th{background:#f5f5f7}
+  </style>
+</head>
+<body>
+  <h1>Результаты импорта ({{ 'upsert' if mode=='upsert' else 'create_only' }})</h1>
+  <ul>
+    <li class="ok">Создано: <b>{{ created }}</b></li>
+    <li class="ok">Обновлено: <b>{{ updated }}</b></li>
+    <li class="warn">Пропущено: <b>{{ skipped }}</b></li>
+    <li class="err">Ошибок: <b>{{ errors|length }}</b></li>
+  </ul>
+
+  {% if errors|length %}
+    <p><a href="data:text/csv;charset=utf-8,{{ error_csv|urlencode }}" download="import_errors.csv">
+      Скачать ошибки (CSV)
+    </a></p>
+    <table>
+      <thead><tr><th>Строка</th><th>Username</th><th>Email</th><th>Причина</th></tr></thead>
+      <tbody>
+      {% for e in errors %}
+        <tr>
+          <td>{{ e.line }}</td>
+          <td>{{ e.username }}</td>
+          <td>{{ e.email }}</td>
+          <td class="err">{{ e.reason }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+
+  <p style="margin-top:16px"><a href="{{ url_for('admin.superadmin_home') }}">← Вернуться в SuperAdmin</a></p>
+</body>
+</html>

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+    <h2>Создание протокола встречи с {{ meeting.student.full_name or meeting.student.username }}</h2>
+    <p>Дата встречи: {{ meeting.scheduled_at.strftime('%d.%m.%Y %H:%M') }}</p>
+    
+    <form method="POST" action="{{ url_for('create_protocol', meeting_id=meeting.id) }}">
+        <div class="mb-3">
+            <label for="duration" class="form-label">Продолжительность (минуты):</label>
+            <input type="number" class="form-control" id="duration" name="duration" required>
+        </div>
+        <div class="mb-3">
+            <label for="topics_discussed" class="form-label">Обсуждаемые темы:</label>
+            <textarea class="form-control" id="topics_discussed" name="topics_discussed" rows="4"></textarea>
+        </div>
+        <div class="mb-3">
+            <label for="emotional_state" class="form-label">Эмоциональное состояние:</label>
+            <textarea class="form-control" id="emotional_state" name="emotional_state" rows="4"></textarea>
+        </div>
+        <div class="mb-3">
+            <label for="progress_notes" class="form-label">Заметки о прогрессе:</label>
+            <textarea class="form-control" id="progress_notes" name="progress_notes" rows="4"></textarea>
+        </div>
+        <div class="mb-3">
+            <label for="recommendations" class="form-label">Рекомендации:</label>
+            <textarea class="form-control" id="recommendations" name="recommendations" rows="4"></textarea>
+        </div>
+        <div class="mb-3">
+            <label for="homework" class="form-label">Домашнее задание:</label>
+            <textarea class="form-control" id="homework" name="homework" rows="4"></textarea>
+        </div>
+        <div class="mb-3">
+            <label for="additional_comments" class="form-label">Дополнительные комментарии:</label>
+            <textarea class="form-control" id="additional_comments" name="additional_comments" rows="4"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Создать протокол</button>
+    </form>
+</div>
+{% endblock %}

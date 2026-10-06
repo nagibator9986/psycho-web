@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-danger mb-4">
+            <div class="card-header bg-danger text-white">
+                <h2 class="mb-0">Экстренная психологическая помощь</h2>
+            </div>
+            <div class="card-body">
+                <h4 class="text-danger mb-4">Если вам срочно нужна помощь:</h4>
+                
+                <div class="alert alert-danger">
+                    <h5><i class="bi bi-telephone me-2"></i>Телефоны экстренной помощи:</h5>
+                    <ul class="mb-0">
+                        <li>Казахстанский телефон доверия: <strong>8-800-2000-122</strong></li>
+                        <li>Кризисная линия: <strong>8-800-333-44-34</strong></li>
+                        <li>Телефон горячей линии: <strong>8-495-989-50-50</strong></li>
+                    </ul>
+                </div>
+                
+                <div class="alert alert-warning">
+                    <h5><i class="bi bi-lightning-charge me-2"></i>Если вам нужна срочная помощь на этой платформе:</h5>
+                    <ol>
+                        <li>Напишите анонимное сообщение любому психологу через <a href="{{ url_for('messages') }}" class="alert-link">раздел сообщений</a></li>
+                        <li>Укажите в сообщении, что вам нужна срочная помощь</li>
+                        <li>Психологи ответят вам как можно быстрее</li>
+                    </ol>
+                </div>
+                
+                <div class="alert alert-info">
+                    <h5><i class="bi bi-info-circle me-2"></i>Помните:</h5>
+                    <p>Вы не одиноки. Обращение за помощью - это признак силы, а не слабости. Мы здесь, чтобы помочь вам.</p>
+                </div>
+                
+                <div class="text-center mt-4">
+                    <a href="{{ url_for('messages') }}" class="btn btn-danger btn-lg me-3">
+                        <i class="bi bi-chat-dots"></i> Написать психологу
+                    </a>
+                    <a href="{{ url_for('tests') }}" class="btn btn-outline-danger btn-lg">
+                        <i class="bi bi-clipboard-check"></i> Пройти тест
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

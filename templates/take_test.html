@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block title %}Прохождение теста{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-10 col-xl-9">
+
+    <!-- Хлебные крошки -->
+    <nav aria-label="breadcrumb" class="mb-3">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item">
+          <a href="{{ url_for('tests') }}">Тесты</a>
+        </li>
+        <li class="breadcrumb-item active" aria-current="page">
+          Прохождение теста
+        </li>
+      </ol>
+    </nav>
+
+    <!-- Обёртка теста -->
+    <div class="app-card app-page-card mt-3">
+      <div class="app-card-body">
+
+        <!-- Заголовок теста + язык -->
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
+          <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <i class="bi bi-clipboard-check fs-4 text-primary"></i>
+              <h2 class="mb-0">
+                {% if lang == 'kk' and test.title_kk %}
+                  {{ test.title_kk }}
+                {% else %}
+                  {{ test.title }}
+                {% endif %}
+              </h2>
+            </div>
+            {% if lang == 'kk' and test.description_kk %}
+              <p class="text-muted mb-0">{{ test.description_kk }}</p>
+            {% elif test.description %}
+              <p class="text-muted mb-0">{{ test.description }}</p>
+            {% endif %}
+          </div>
+
+          <div class="d-flex flex-wrap gap-2">
+            <span class="badge-soft small">
+              Тип: {% if test.test_type == 'scale' %}шкальный{% else %}классический{% endif %}
+            </span>
+            {% if has_kk %}
+              <span class="badge-soft small">
+                Язык: {% if lang == 'kk' %}қазақша{% else %}русский{% endif %}
+              </span>
+            {% endif %}
+          </div>
+        </div>
+
+        <hr class="my-3">
+
+        <!-- Форма теста -->
+        <form method="post">
+          <input type="hidden" name="lang" value="{{ lang }}">
+
+          {% for q in test.questions %}
+            <div class="app-card mb-3">
+              <div class="app-card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <div>
+                    <div class="small text-muted text-uppercase mb-1">
+                      Вопрос {{ loop.index }} из {{ test.questions|length }}
+                    </div>
+                    <div class="fw-semibold">
+                      {% if lang == 'kk' and q.text_kk %}
+                        {{ q.text_kk }}
+                      {% else %}
+                        {{ q.text }}
+                      {% endif %}
+                    </div>
+                  </div>
+                  <span class="badge-soft small">
+                    {% if q.question_type == 'text' %}Свободный ответ{% endif %}
+                    {% if q.question_type == 'single_choice' %}Один вариант{% endif %}
+                    {% if q.question_type == 'multiple_choice' %}Несколько вариантов{% endif %}
+                    {% if q.question_type == 'scale_choice' %}Шкала{% endif %}
+                  </span>
+                </div>
+
+                <!-- Поля ввода под тип вопроса -->
+                {% if q.question_type == 'text' %}
+                  <textarea
+                    class="form-control"
+                    name="answer_{{ q.id }}"
+                    rows="3"
+                    placeholder="Ваш ответ..."
+                  ></textarea>
+
+                {% elif q.question_type == 'single_choice' or q.question_type == 'scale_choice' %}
+                  <div class="d-flex flex-column gap-2 mt-2">
+                    {% for opt in q.options %}
+                      <label class="app-option-row">
+                        <input
+                          class="form-check-input"
+                          type="radio"
+                          name="answer_{{ q.id }}"
+                          value="{{ opt.id }}"
+                        >
+                        <span class="app-option-body">
+                          <span class="app-option-text">
+                            {% if lang == 'kk' and opt.text_kk %}
+                              {{ opt.text_kk }}
+                            {% else %}
+                              {{ opt.text }}
+                            {% endif %}
+                          </span>
+                          {% if is_psychologist() %}
+                            <span class="app-option-meta small text-muted">
+                              Балл: {{ opt.score or 0 }}
+                            </span>
+                          {% endif %}
+                        </span>
+                      </label>
+                    {% endfor %}
+                  </div>
+
+                {% elif q.question_type == 'multiple_choice' %}
+                  <div class="d-flex flex-column gap-2 mt-2">
+                    {% for opt in q.options %}
+                      <label class="app-option-row">
+                        <input
+                          class="form-check-input"
+                          type="checkbox"
+                          name="answer_{{ q.id }}"
+                          value="{{ opt.id }}"
+                        >
+                        <span class="app-option-body">
+                          <span class="app-option-text">
+                            {% if lang == 'kk' and opt.text_kk %}
+                              {{ opt.text_kk }}
+                            {% else %}
+                              {{ opt.text }}
+                            {% endif %}
+                          </span>
+                          {% if is_psychologist() %}
+                            <span class="app-option-meta small text-muted">
+                              Балл: {{ opt.score or 0 }}
+                            </span>
+                          {% endif %}
+                        </span>
+                      </label>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+
+          <!-- Подсказка студенту -->
+          {% if not is_psychologist() %}
+            <div class="alert alert-info mb-3">
+              <i class="bi bi-shield-check me-1"></i>
+              Ваши ответы видны только вам и вашему психологу.
+              Отвечайте максимально честно — это помогает точнее понять ваше состояние.
+            </div>
+          {% endif %}
+
+          <!-- Кнопки -->
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+            <a href="{{ url_for('tests') }}" class="btn btn-light">
+              <i class="bi bi-arrow-left me-1"></i>
+              Назад к списку тестов
+            </a>
+            <button type="submit" class="btn btn-primary">
+              Завершить тест
+              <i class="bi bi-arrow-right ms-1"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .app-option-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    background: rgba(248, 250, 252, 0.8);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .app-option-row:hover {
+    border-color: rgba(79, 70, 229, 0.35);
+    background: #ffffff;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.05);
+  }
+  .app-option-row .form-check-input {
+    margin-top: 4px;
+  }
+  .app-option-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .app-option-text {
+    font-size: 0.95rem;
+  }
+  .app-option-meta {
+    font-size: 0.8rem;
+  }
+</style>
+{% endblock %}

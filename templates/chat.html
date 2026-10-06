@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+    <h2>Чат с {{ contact.full_name or contact.username }}</h2>
+    
+    <!-- История сообщений -->
+    <div class="card mb-4" style="max-height: 400px; overflow-y: auto;">
+        <div class="card-body">
+            {% for message in messages %}
+            <div class="mb-2">
+                <strong>{{ message.sender.full_name or message.sender.username }}</strong>
+                {% if message.is_anonymous %}(Анонимно){% endif %}:
+                {{ message.content }}<br>
+                <small>{{ message.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Форма отправки сообщения -->
+    <form method="POST" class="mb-4">
+        <div class="mb-3">
+            <textarea class="form-control" name="content" rows="4" placeholder="Введите сообщение..." required></textarea>
+        </div>
+        <div class="mb-3 form-check">
+            <input type="checkbox" class="form-check-input" id="is_anonymous" name="is_anonymous">
+            <label class="form-check-label" for="is_anonymous">Отправить анонимно</label>
+        </div>
+        <button type="submit" class="btn btn-primary">Отправить</button>
+    </form>
+    
+    <!-- Форма назначения встречи -->
+    <h3>Назначить встречу</h3>
+    <form method="POST">
+        <div class="mb-3">
+            <label for="appointment_date" class="form-label">Дата и время:</label>
+            <input type="datetime-local" class="form-control" id="appointment_date" name="appointment_date" required>
+        </div>
+        <div class="mb-3">
+            <label for="purpose" class="form-label">Цель встречи:</label>
+            <textarea class="form-control" id="purpose" name="purpose" rows="3"></textarea>
+        </div>
+        <button type="submit" class="btn btn-success">Назначить встречу</button>
+    </form>
+</div>
+{% endblock %}

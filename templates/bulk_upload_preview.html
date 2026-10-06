@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Предпросмотр импорта</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:24px}
+    table{border-collapse:collapse;width:100%}
+    th,td{border:1px solid #ddd;padding:8px;vertical-align:top}
+    th{background:#f5f5f7}
+    .muted{color:#666}
+    .ok{color:#0a7}
+    .warn{color:#a70}
+    .err{color:#c00}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .card{border:1px solid #e5e5e5;border-radius:8px;padding:16px}
+    .actions{display:flex;gap:8px;margin-top:16px}
+    button{padding:8px 12px}
+  </style>
+</head>
+<body>
+  <h1>Предпросмотр импорта CSV</h1>
+  <p class="muted">Режим: <b>{{ 'Создание только новых' if mode=='create_only' else 'Создание/обновление (upsert)' }}</b>.
+     Разделитель: <code>{{ delimiter }}</code>.</p>
+
+  <div class="grid">
+    <div class="card">
+      <h3>Итоги проверки</h3>
+      <ul>
+        <li class="ok">Будет создано: <b>{{ created }}</b></li>
+        <li class="ok">Будет обновлено: <b>{{ updated }}</b></li>
+        <li class="warn">Будет пропущено: <b>{{ skipped }}</b></li>
+        <li class="err">Ошибок: <b>{{ errors|length }}</b></li>
+      </ul>
+
+      <form method="post" action="{{ url_for('admin.bulk_upload') }}">
+        <input type="hidden" name="confirm" value="1">
+        <input type="hidden" name="mode" value="{{ mode }}">
+        <input type="hidden" name="plan_b64" value="{{ plan_b64 }}">
+        <div class="actions">
+          <button type="submit" {{ 'disabled' if errors|length>0 else '' }}>
+            Подтвердить импорт
+          </button>
+          <a href="{{ url_for('admin.superadmin_home') }}">Отмена</a>
+        </div>
+        {% if errors|length>0 %}
+          <p class="muted" style="margin-top:8px">
+            Обнаружены ошибки. Сначала исправьте CSV и загрузите заново.
+            <a href="data:text/csv;charset=utf-8,{{ error_csv|urlencode }}" download="import_errors.csv">
+              Скачать ошибки (CSV)
+            </a>
+          </p>
+        {% endif %}
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>Примеры действий (первые 50)</h3>
+      <table>
+        <thead>
+          <tr><th>#</th><th>Действие</th><th>Username</th><th>Email</th><th>Роль</th><th>Группа</th><th>Курс</th></tr>
+        </thead>
+        <tbody>
+        {% for it in sample_items %}
+          <tr>
+            <td>{{ it.line }}</td>
+            <td>{{ it.action }}</td>
+            <td>{{ it.data.username }}</td>
+            <td>{{ it.data.email }}</td>
+            <td>{{ it.data.role }}</td>
+            <td>{{ it.data.group }}</td>
+            <td>{{ it.data.course }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% if sample_items|length == 0 %}
+        <p class="muted">Нет действий — вероятно, все строки пустые или с ошибками.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if errors|length %}
+  <div class="card" style="margin-top:16px">
+    <h3>Ошибки строк</h3>
+    <table>
+      <thead><tr><th>Строка</th><th>Username</th><th>Email</th><th>Причина</th></tr></thead>
+      <tbody>
+        {% for e in errors %}
+        <tr>
+          <td>{{ e.line }}</td>
+          <td>{{ e.username }}</td>
+          <td>{{ e.email }}</td>
+          <td class="err">{{ e.reason }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</body>
+</html>

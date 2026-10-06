@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-body text-center">
+                {% if user.profile_pic %}
+                    <img src="{{ url_for('static', filename='uploads/' + user.profile_pic) }}" class="rounded-circle mb-3" width="150" height="150">
+                {% else %}
+                    <div class="rounded-circle bg-secondary mb-3 mx-auto" style="width: 150px; height: 150px;"></div>
+                {% endif %}
+                <h4>{{ user.full_name if user.full_name else user.username }}</h4>
+                <p class="text-muted">{{ 'Психолог' if user.role == 'psychologist' else 'Студент' }}</p>
+                
+                {% if user.bio %}
+                    <p>{{ user.bio }}</p>
+                {% endif %}
+                
+                {% if can_edit %}
+                    <a href="{{ url_for('edit_profile') }}" class="btn btn-outline-primary btn-sm">Редактировать профиль</a>
+                {% elif user.role == 'psychologist' %}
+                    <a href="{{ url_for('chat', contact_id=user.id) }}" class="btn btn-primary">Написать сообщение</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        {% if can_edit %}
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Мои публикации</h2>
+                <a href="{{ url_for('create_post') }}" class="btn btn-primary">Новый пост</a>
+            </div>
+        {% else %}
+            <h2 class="mb-4">Публикации</h2>
+        {% endif %}
+
+        {% if posts %}
+            <div class="list-group">
+                {% for post in posts %}
+                <a href="{{ url_for('view_post', post_id=post.id) }}" class="list-group-item list-group-item-action">
+                    <div class="d-flex justify-content-between">
+                        <h5 class="mb-1">{{ post.title }}</h5>
+                        <small class="text-muted">{{ post.created_at.strftime('%d.%m.%Y') }}</small>
+                    </div>
+                    <p class="mb-1">{{ post.content|truncate(200) }}</p>
+                    <small>{{ post.comments|length }} комментариев</small>
+                </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                {% if can_edit %}
+                    У вас пока нет публикаций. <a href="{{ url_for('create_post') }}" class="alert-link">Создайте первый пост</a>.
+                {% else %}
+                    У пользователя пока нет публикаций.
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

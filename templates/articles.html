@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Статьи{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Полезные статьи</h1>
+        {% if get_current_user() and get_current_user().role == 'psychologist' %}
+            <a href="{{ url_for('create_article') }}" class="btn btn-primary">Добавить статью</a>
+        {% endif %}
+    </div>
+
+    {% if articles %}
+        <div class="row">
+            {% for article in articles %}
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    {% if article.image_url %}
+                        <img src="{{ url_for('static', filename='uploads/' + article.image_url) }}" class="card-img-top" alt="{{ article.title }}" style="height: 200px; object-fit: cover;">
+                    {% else %}
+                        <div class="bg-secondary" style="height: 200px;"></div>
+                    {% endif %}
+                    <div class="card-body">
+                        <h5 class="card-title">{{ article.title }}</h5>
+                        <p class="card-text text-muted">{{ article.content|truncate(100) }}</p>
+                        <p class="text-muted">
+                            <small>Автор: {{ article.user.full_name or article.user.username }}<br>
+                            {{ article.created_at.strftime('%d.%m.%Y') }}</small>
+                        </p>
+                    </div>
+                    <div class="card-footer bg-transparent border-0">
+                        <a href="{{ url_for('view_article', article_id=article.id) }}" class="btn btn-outline-primary btn-sm">Читать полностью</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info text-center">
+            Пока нет статей. 
+            {% if get_current_user() and get_current_user().role == 'psychologist' %}
+                <a href="{{ url_for('create_article') }}" class="alert-link">Создайте первую статью</a>.
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

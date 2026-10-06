@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Психологические тесты</h1>
+    {% if is_psychologist() %}
+        <a href="{{ url_for('create_test') }}" class="btn btn-primary">Создать тест</a>
+    {% endif %}
+</div>
+
+<div class="card">
+    <div class="card-body">
+        {% if tests %}
+            <div class="list-group">
+                {% for test in tests %}
+                <div class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-1">{{ test.title }}</h5>
+                            <p class="mb-1">{{ test.description }}</p>
+                            <small class="text-muted">Создал: {{ test.creator.username }} · {{ test.created_at.strftime('%d.%m.%Y') }}</small>
+                        </div>
+                        <div>
+                            {% if is_psychologist() and test.user_id == session['user_id'] %}
+                                <a href="{{ url_for('add_questions', test_id=test.id) }}" class="btn btn-sm btn-outline-secondary me-1">Вопросы</a>
+                                <a href="{{ url_for('edit_test', test_id=test.id) }}" class="btn btn-sm btn-outline-primary me-1">Редактировать</a>
+                                <form action="{{ url_for('delete_test', test_id=test.id) }}" method="POST" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                                </form>
+                            {% else %}
+                                {% if test.id in my_results %}
+                                    <a href="{{ url_for('test_result', result_id=my_results[test.id].id) }}" class="btn btn-sm btn-outline-primary">Результат</a>
+                                {% elif test.is_active %}
+                                    <a href="{{ url_for('take_test', test_id=test.id) }}" class="btn btn-sm btn-primary">Пройти тест</a>
+                                {% else %}
+                                    <span class="badge bg-secondary">Недоступен</span>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                {% if is_psychologist() %}
+                    Вы еще не создали ни одного теста. <a href="{{ url_for('create_test') }}" class="alert-link">Создайте первый тест</a>.
+                {% else %}
+                    Нет доступных тестов.
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

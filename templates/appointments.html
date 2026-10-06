@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+    <h2>Ваши встречи</h2>
+    
+    <!-- Календарь для психологов -->
+    {% if is_psychologist() %}
+    <div class="mb-4">
+        <h3>Календарь встреч</h3>
+        <div id="calendar"></div>
+    </div>
+    {% endif %}
+    
+    <!-- Предстоящие встречи -->
+    <h3>Предстоящие встречи</h3>
+    <div class="row">
+        {% for meeting in meetings %}
+        {% if meeting.status == 'planned' %}
+        <div class="col-md-4 mb-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Встреча с {{ meeting.student.full_name or meeting.student.username }}</h5>
+                    <p class="card-text">
+                        Дата: {{ meeting.scheduled_at.strftime('%d.%m.%Y %H:%M') }}<br>
+                        Статус: {{ meeting.status }}<br>
+                        {% if is_psychologist() %}
+                        <a href="{{ url_for('create_protocol', meeting_id=meeting.id) }}" class="btn btn-sm btn-primary">Создать протокол</a>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+    
+    <!-- Прошлые встречи -->
+    <h3>История встреч</h3>
+    <div class="row">
+        {% for meeting in meetings %}
+        {% if meeting.status == 'completed' %}
+        <div class="col-md-4 mb-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Встреча с {{ meeting.student.full_name or meeting.student.username }}</h5>
+                    <p class="card-text">
+                        Дата: {{ meeting.scheduled_at.strftime('%d.%m.%Y %H:%M') }}<br>
+                        Статус: {{ meeting.status }}
+                    </p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+    
+    <!-- Протоколы встреч -->
+    <h3>Протоколы встреч</h3>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Студент</th>
+                <th>Дата</th>
+                <th>Темы</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for protocol in protocols %}
+            <tr>
+                <td>{{ protocol.student.full_name or protocol.student.username }}</td>
+                <td>{{ protocol.session_date.strftime('%d.%m.%Y %H:%M') }}</td>
+                <td>{{ protocol.topics_discussed|truncate(50) }}</td>
+                <td>
+                    <a href="{{ url_for('download_protocol', protocol_id=protocol.id) }}" class="btn btn-sm btn-success">Скачать PDF</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <!-- Назначения -->
+    <h3>Назначения</h3>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Студент</th>
+                <th>Дата</th>
+                <th>Цель</th>
+                <th>Статус</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for appointment in appointments %}
+            <tr>
+                <td>{{ appointment.student.full_name or appointment.student.username }}</td>
+                <td>{{ appointment.appointment_date.strftime('%d.%m.%Y %H:%M') }}</td>
+                <td>{{ appointment.purpose or 'Не указана' }}</td>
+                <td>{{ appointment.status }}</td>
+                <td>
+                    {% if is_psychologist() %}
+                    <form method="POST" action="{{ url_for('update_appointment', appointment_id=appointment.id) }}" style="display:inline;">
+                        <select name="status" onchange="this.form.submit()">
+                            <option value="pending" {% if appointment.status == 'pending' %}selected{% endif %}>Ожидает</option>
+                            <option value="confirmed" {% if appointment.status == 'confirmed' %}selected{% endif %}>Подтверждено</option>
+                            <option value="cancelled" {% if appointment.status == 'cancelled' %}selected{% endif %}>Отменено</option>
+                        </select>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if is_psychologist() %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var calendarEl = document.getElementById('calendar');
+        var calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            events: '/api/meetings/calendar',
+            eventClick: function(info) {
+                alert('Встреча: ' + info.event.title + '\nДата: ' + info.event.start.toLocaleString());
+            }
+        });
+        calendar.render();
+    });
+</script>
+{% endif %}
+{% endblock %}
