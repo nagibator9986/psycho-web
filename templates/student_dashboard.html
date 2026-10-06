@@ -99,11 +99,12 @@
             <div class="card-body">
                 {% if available_tests %}
                     <div class="list-group">
-                        {% for test in available_tests %}
+                        {% for state in available_tests %}
+                        {% set test = state.test %}
                         <div class="list-group-item d-flex justify-content-between align-items-center gap-2">
                             <div>
                                 <h6 class="mb-1">{{ test.title }}</h6>
-                                <small class="text-muted">{{ test.questions|length }} вопросов</small>
+                                <small class="text-muted">{{ test.questions|length }} вопросов{% if state.last %} · повторное прохождение{% endif %}</small>
                             </div>
                             <a href="{{ url_for('take_test', test_id=test.id) }}" class="btn btn-sm btn-primary">Пройти</a>
                         </div>

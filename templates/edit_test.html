@@ -3,6 +3,8 @@
 
 {% block title %}Редактирование теста{% endblock %}
 
+
+
 {% block content %}
 <div class="row justify-content-center">
   <div class="col-lg-9">
@@ -35,9 +37,31 @@
         </div>
       </div>
 
-      <div class="mb-4 form-check form-switch">
+      <div class="mb-3 form-check form-switch">
         <input type="checkbox" class="form-check-input" id="is_active" name="is_active" {% if test.is_active %}checked{% endif %}>
         <label class="form-check-label" for="is_active">Тест активен — студенты видят его в списке</label>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-body">
+          <label class="form-label" for="retake_after_days">Повторное прохождение</label>
+          <div class="d-flex align-items-center flex-wrap gap-2">
+            <select class="form-select" id="retakeMode" style="max-width: 260px;">
+              <option value="none" {% if test.retake_after_days is none %}selected{% endif %}>Нельзя — один раз</option>
+              <option value="days" {% if test.retake_after_days is not none %}selected{% endif %}>Можно, через…</option>
+            </select>
+            <div class="input-group" id="retakeDays" style="max-width: 200px; {% if test.retake_after_days is none %}display:none{% endif %}">
+              <input type="number" class="form-control" id="retake_after_days" name="retake_after_days" min="0" max="3650"
+                     value="{{ test.retake_after_days if test.retake_after_days is not none else 30 }}"
+                     {% if test.retake_after_days is none %}disabled{% endif %}>
+              <span class="input-group-text">дней</span>
+            </div>
+          </div>
+          <div class="form-text">
+            Для мониторинга состояния (например, раз в семестр) разрешите повтор — в карточке студента появится динамика.
+            0 дней — можно проходить сразу.
+          </div>
+        </div>
       </div>
 
       <div class="d-flex gap-2 flex-wrap">
@@ -48,4 +72,19 @@
     </form>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const mode = document.getElementById('retakeMode');
+  const box = document.getElementById('retakeDays');
+  const input = document.getElementById('retake_after_days');
+  mode.addEventListener('change', function () {
+    const on = mode.value === 'days';
+    box.style.display = on ? '' : 'none';
+    input.disabled = !on;
+  });
+})();
+</script>
 {% endblock %}

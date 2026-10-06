@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% from '_macros.html' import page_header, empty %}
+
+{% block title %}Требуют внимания{% endblock %}
+
+{% block content %}
+{{ page_header('Требуют внимания', 'Результаты из диапазонов, отмеченных «требует внимания», которые ещё не разобраны. Откройте результат, при необходимости свяжитесь со студентом и отметьте случай как разобранный.') }}
+
+{% if tests_with_alerts|length > 1 %}
+<ul class="nav nav-pills mb-3">
+  <li class="nav-item"><a class="nav-link {% if not test_id %}active{% endif %}" href="{{ url_for('alerts') }}">Все <span class="badge text-bg-secondary ms-1">{{ total }}</span></a></li>
+  {% for t in tests_with_alerts %}
+  <li class="nav-item">
+    <a class="nav-link {% if test_id == t.id %}active{% endif %}" href="{{ url_for('alerts', test_id=t.id) }}">
+      {{ t.title|truncate(40) }} <span class="badge text-bg-secondary ms-1">{{ per_test.get(t.id, 0) }}</span>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+{% if items %}
+<form method="post" action="{{ url_for('alerts', test_id=test_id) }}"
+      data-confirm="Отметить выбранные результаты как разобранные?">
+  {{ csrf_field() }}
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="checkAll">
+      <label class="form-check-label small" for="checkAll">Выбрать все на странице</label>
+    </div>
+    <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-check2-all"></i> Отметить выбранные как разобранные</button>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead>
+        <tr><th style="width: 32px"></th><th>Студент</th><th>Тест</th><th class="text-end">Балл</th><th>Интерпретация</th><th>Дата</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for r in items %}
+        <tr>
+          <td><input class="form-check-input chk" type="checkbox" name="result_ids[]" value="{{ r.id }}" aria-label="Выбрать"></td>
+          <td>
+            <a href="{{ url_for('student_analytics', student_id=r.user_id) }}" class="fw-semibold text-decoration-none">{{ r.user.display_name }}</a>
+            <div class="small text-muted">{{ r.user.group.name if r.user.group else 'без группы' }}</div>
+          </td>
+          <td class="small">{{ r.test.title|truncate(50) }}</td>
+          <td class="text-end fw-semibold">{{ r.score }}</td>
+          <td class="small">{{ (r.result_text or '')|truncate(70) }}</td>
+          <td class="small text-nowrap">{{ r.created_at|ts('%d.%m.%Y') }}</td>
+          <td><a href="{{ url_for('test_result', result_id=r.id) }}" class="btn btn-sm btn-outline-primary">Открыть</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if total > items|length and not test_id %}
+    <p class="small text-muted mt-2 mb-0">Показаны последние {{ items|length }} из {{ total }}.</p>
+  {% endif %}
+</form>
+<p class="small text-muted mt-3 mb-0">
+  Совет: если вы только что отметили диапазон как тревожный и в списке оказались старые результаты, выберите
+  уже обсуждённые случаи и отметьте их разом.
+</p>
+{% else %}
+  {{ empty('Неразобранных тревожных результатов нет', 'shield-check') }}
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const all = document.getElementById('checkAll');
+if (all) all.addEventListener('change', function () {
+  document.querySelectorAll('.chk').forEach(c => { c.checked = all.checked; });
+});
+</script>
+{% endblock %}

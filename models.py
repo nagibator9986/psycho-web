@@ -44,6 +44,7 @@ class User(UserMixin, db.Model):
     # Результаты тестов, пройденные пользователем (студентом)
     test_results = db.relationship(
         'TestResult',
+        foreign_keys='TestResult.user_id',
         backref='user',
         lazy=True,
     )
@@ -213,6 +214,9 @@ class Test(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_active = db.Column(db.Boolean, default=True)
 
+    # Повторное прохождение: None — нельзя, N — через N дней после последней попытки
+    retake_after_days = db.Column(db.Integer)
+
     # Вопросы теста (порядок = порядок добавления; от него зависят номера в подшкалах)
     questions = db.relationship(
         'Question',
@@ -345,6 +349,12 @@ class TestResult(db.Model):
     language = db.Column(db.String(5))
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Разбор психологом результата из зоны «требует внимания»
+    reviewed_at = db.Column(db.DateTime)
+    reviewed_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    psychologist_note = db.Column(db.Text)
+    reviewed_by = db.relationship('User', foreign_keys=[reviewed_by_id])
 
     answers = db.relationship(
         'TestAnswer',

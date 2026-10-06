@@ -7,7 +7,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from flask import current_app
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, select
 
 from extensions import db
 from models import (
@@ -161,30 +161,102 @@ def interpretation_issues(test: Test) -> list[str]:
 
 
 def result_is_alert(result: TestResult) -> bool:
-    if result.score is None:
-        return False
-    return any(
-        it.is_alert and it.min_score <= result.score <= it.max_score
-        for it in result.test.interpretations
-    )
+    """Тревожный ли результат: по той интерпретации, которая выбрана для его балла."""
+    interp = interpretation_for_score(result.test.interpretations, result.score)
+    return bool(interp and interp.is_alert)
 
 
-def alert_results_query(psychologist_id: int):
+def alert_results_query(psychologist_id: int, unreviewed_only: bool = False):
     """Результаты по тестам психолога, попавшие в диапазоны «требует внимания»."""
-    return (
-        TestResult.query.join(Test, Test.id == TestResult.test_id)
-        .join(
-            TestInterpretation,
-            and_(
-                TestInterpretation.test_id == TestResult.test_id,
-                TestInterpretation.is_alert.is_(True),
-                TestInterpretation.min_score <= TestResult.score,
-                TestInterpretation.max_score >= TestResult.score,
-            ),
+    # Интерпретация, выбранная для балла (при пересечении диапазонов — с большим «от»),
+    # должна быть отмечена «требует внимания» — так же, как в тексте результата.
+    chosen_is_alert = (
+        select(TestInterpretation.is_alert)
+        .where(
+            TestInterpretation.test_id == TestResult.test_id,
+            TestInterpretation.min_score <= TestResult.score,
+            TestInterpretation.max_score >= TestResult.score,
         )
-        .filter(Test.user_id == psychologist_id)
-        .distinct()
+        .order_by(TestInterpretation.min_score.desc())
+        .limit(1)
+        .correlate(TestResult)
+        .scalar_subquery()
     )
+    query = (
+        TestResult.query.join(Test, Test.id == TestResult.test_id)
+        .filter(Test.user_id == psychologist_id, chosen_is_alert.is_(True))
+    )
+    if unreviewed_only:
+        query = query.filter(TestResult.reviewed_at.is_(None))
+    return query
+
+
+def pending_alert_count(psychologist_id: int) -> int:
+    return alert_results_query(psychologist_id, unreviewed_only=True).count()
+
+
+def retake_available_from(test: Test, last_result: TestResult | None) -> datetime | None:
+    """
+    Когда студент может пройти тест (UTC): None — нельзя, иначе момент времени.
+    Без предыдущей попытки — сразу.
+    """
+    if last_result is None:
+        return datetime.min
+    if test.retake_after_days is None:
+        return None
+    try:
+        return (last_result.created_at or datetime.min) + timedelta(days=max(test.retake_after_days, 0))
+    except OverflowError:
+        return None
+
+
+def interpretation_for_score(interpretations, score):
+    """Та же логика, что find_interpretation, но по уже загруженному списку."""
+    matching = [i for i in interpretations if score is not None and i.min_score <= score <= i.max_score]
+    return max(matching, key=lambda i: i.min_score) if matching else None
+
+
+def group_summary(test: Test, results: list[TestResult], group_sizes: dict) -> list[dict]:
+    """
+    Сводка по группам: охват, средний балл, распределение по интерпретациям.
+    Берётся последняя попытка каждого студента, чтобы повторы не искажали картину.
+    """
+    latest: dict[int, TestResult] = {}
+    for r in results:
+        prev = latest.get(r.user_id)
+        if prev is None or (r.created_at or datetime.min) >= (prev.created_at or datetime.min):
+            latest[r.user_id] = r
+
+    interpretations = list(test.interpretations)
+    rows: dict[str, dict] = {}
+    for r in latest.values():
+        group = r.user.group
+        key = group.name if group else 'Без группы'
+        row = rows.setdefault(key, {
+            'group': key,
+            'members': group_sizes.get(group.id, 0) if group else None,
+            'passed': 0, 'scores': [], 'bands': {i.id: 0 for i in interpretations},
+            'no_band': 0, 'alerts': 0,
+        })
+        row['passed'] += 1
+        if r.score is not None:
+            row['scores'].append(r.score)
+        interp = interpretation_for_score(interpretations, r.score)
+        if interp is None:
+            row['no_band'] += 1
+        else:
+            row['bands'][interp.id] += 1
+            if interp.is_alert:
+                row['alerts'] += 1
+
+    summary = []
+    for key in sorted(rows, key=lambda k: (k == 'Без группы', k)):
+        row = rows[key]
+        scores = row.pop('scores')
+        row['avg'] = round(sum(scores) / len(scores), 1) if scores else None
+        row['coverage'] = (round(row['passed'] * 100 / row['members']) if row['members'] else None)
+        summary.append(row)
+    return summary
 
 
 # ---------- подшкалы ----------

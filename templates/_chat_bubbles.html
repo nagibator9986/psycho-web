@@ -1,0 +1,14 @@
+{% set me = get_current_user() %}
+{# В анонимном чате психолог видит только дату: точное время помогло бы
+   сопоставить сообщение с тревожным результатом и узнать студента. #}
+{% set time_fmt = '%d.%m.%Y' if anonymous and me.role != 'student' else '%d.%m.%Y %H:%M' %}
+{% for message in messages %}
+  {% set mine = message.sender_id == me.id %}
+  <div class="chat-bubble {{ 'mine' if mine }}" data-id="{{ message.id }}">
+    <div class="text-pre">{{ message.content }}</div>
+    <div class="chat-meta">
+      {{ 'Вы' if mine else chat_title }} · {{ message.created_at|ts(time_fmt) }}
+      {% if mine and message.is_read %}· <i class="bi bi-check2-all" title="Прочитано"></i>{% endif %}
+    </div>
+  </div>
+{% endfor %}

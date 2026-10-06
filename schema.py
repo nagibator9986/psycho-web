@@ -23,6 +23,10 @@ COLUMNS = [
     ('question', 'text_kk', 'TEXT'),
     ('question_option', 'text_kk', 'VARCHAR(200)'),
     ('test_result', 'language', 'VARCHAR(5)'),
+    ('test_result', 'reviewed_at', 'DATETIME'),
+    ('test_result', 'reviewed_by_id', 'INTEGER'),
+    ('test_result', 'psychologist_note', 'TEXT'),
+    ('test', 'retake_after_days', 'INTEGER'),
     ('test_interpretation', 'is_alert', 'BOOLEAN NOT NULL DEFAULT 0'),
 ]
 

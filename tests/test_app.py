@@ -633,3 +633,201 @@ def test_admin_can_edit_own_profile_and_bad_pagination_params(app, make_user, lo
     assert page.status_code == 200
     html = page.get_data(as_text=True)
     assert 'page=2' in html and '#evil' not in html and 'http://localhost' not in html
+
+
+# ---------- продуманные сценарии ----------
+
+def _alert_setup(make_user, login_as):
+    psych = make_user('psych', role='psychologist')
+    test = make_scale_test(psych)
+    db.session.add(TestInterpretation(test_id=test.id, min_score=4, max_score=6, text='Риск', is_alert=True))
+    db.session.add(TestInterpretation(test_id=test.id, min_score=0, max_score=3, text='Норма'))
+    db.session.commit()
+    return psych, test
+
+
+def test_alert_review_workflow(app, make_user, login_as):
+    psych, test = _alert_setup(make_user, login_as)
+    s = login_as(make_user('100000000001', group='ИС-21'))
+    s.post(f'/tests/{test.id}/take', answer_all(test, 2))
+    result = TestResult.query.one()
+
+    p = login_as(psych)
+    assert 'Риск' in p.get('/alerts').get_data(as_text=True)
+    assert services.pending_alert_count(psych.id) == 1
+    assert 'внимание' in p.get('/analytics/students').get_data(as_text=True)
+
+    other = login_as(make_user('psych2', role='psychologist'))
+    assert other.post(f'/test_result/{result.id}/review', {'action': 'review'}).status_code == 403
+
+    p.post(f'/test_result/{result.id}/review', {'action': 'review', 'note': 'Позвонили, всё в порядке'})
+    result = db.session.get(TestResult, result.id)
+    assert result.reviewed_at and result.reviewed_by_id == psych.id
+    assert result.psychologist_note == 'Позвонили, всё в порядке'
+    assert services.pending_alert_count(psych.id) == 0
+    assert 'Риск' not in p.get('/alerts').get_data(as_text=True)
+
+    p.post(f'/test_result/{result.id}/review', {'action': 'reopen'})
+    assert services.pending_alert_count(psych.id) == 1
+
+
+def test_bulk_alert_review(app, make_user, login_as):
+    psych, test = _alert_setup(make_user, login_as)
+    for i in range(3):
+        login_as(make_user(f'10000000000{i}')).post(f'/tests/{test.id}/take', answer_all(test, 2))
+    ids = [r.id for r in TestResult.query.all()]
+    login_as(psych).post('/alerts', {'result_ids[]': [str(x) for x in ids[:2]]})
+    assert services.pending_alert_count(psych.id) == 1
+
+
+def test_student_sees_support_only_for_alert_result(app, make_user, login_as):
+    psych, test = _alert_setup(make_user, login_as)
+    s = login_as(make_user('100000000001'))
+    s.post(f'/tests/{test.id}/take', answer_all(test, 2))
+    page = s.get(f'/test_result/{TestResult.query.one().id}').get_data(as_text=True)
+    assert 'может быть непросто' in page and 'tel:150' in page and 'Риск' not in page
+
+    test.retake_after_days = 0
+    db.session.commit()
+    s.post(f'/tests/{test.id}/take', answer_all(test, 0))
+    calm = TestResult.query.order_by(TestResult.id.desc()).first()
+    assert 'может быть непросто' not in s.get(f'/test_result/{calm.id}').get_data(as_text=True)
+
+
+def test_retake_policy(app, make_user, login_as):
+    psych = make_user('psych', role='psychologist')
+    test = make_scale_test(psych)
+    s = login_as(make_user('100000000001'))
+    s.post(f'/tests/{test.id}/take', answer_all(test, 0))
+    # по умолчанию — один раз
+    assert s.get(f'/tests/{test.id}/take').status_code == 302
+    s.post(f'/tests/{test.id}/take', answer_all(test, 1))
+    assert TestResult.query.count() == 1
+    assert 'пройден' in s.get('/tests').get_data(as_text=True)
+
+    p = login_as(psych)
+    p.post(f'/tests/{test.id}/edit', {'title': test.title, 'is_active': 'on', 'retake_after_days': '30'})
+    assert db.session.get(Test, test.id).retake_after_days == 30
+    assert s.get(f'/tests/{test.id}/take').status_code == 302
+    assert 'повторно — с' in s.get('/tests').get_data(as_text=True)
+
+    # прошло 31 день
+    r = TestResult.query.one()
+    r.created_at = r.created_at - timedelta(days=31)
+    db.session.commit()
+    assert 'Пройти снова' in s.get('/tests').get_data(as_text=True)
+    s.post(f'/tests/{test.id}/take', answer_all(test, 2))
+    assert TestResult.query.count() == 2
+
+    # история попыток у психолога
+    latest = TestResult.query.order_by(TestResult.id.desc()).first()
+    assert 'Все попытки этого студента' in p.get(f'/test_result/{latest.id}').get_data(as_text=True)
+
+
+def test_group_summary_uses_latest_attempt_and_coverage(app, make_user, login_as):
+    psych, test = _alert_setup(make_user, login_as)
+    test.retake_after_days = 0
+    db.session.commit()
+    a = make_user('100000000001', group='ИС-21')
+    make_user('100000000002', group='ИС-21')  # не проходил
+    s = login_as(a)
+    s.post(f'/tests/{test.id}/take', answer_all(test, 2))  # 6 — риск
+    s.post(f'/tests/{test.id}/take', answer_all(test, 0))  # 0 — норма, последняя
+    from models import Group
+    sizes = {Group.query.filter_by(name='ИС-21').one().id: 2}
+    summary = services.group_summary(db.session.get(Test, test.id), TestResult.query.all(), sizes)
+    row = summary[0]
+    assert row['group'] == 'ИС-21' and row['passed'] == 1 and row['members'] == 2 and row['coverage'] == 50
+    assert row['alerts'] == 0 and row['avg'] == 0
+    page = login_as(psych).get(f'/tests/{test.id}/results').get_data(as_text=True)
+    assert 'Сводка по группам' in page and '1 из 2' in page
+
+
+def test_chat_partial_returns_only_new_messages(app, make_user, login_as):
+    psych = make_user('psych', role='psychologist')
+    student = make_user('100000000001')
+    s = login_as(student)
+    s.post(f'/messages/{psych.id}', {'content': 'Первое'})
+    first = Message.query.one()
+    p = login_as(psych)
+    p.post(f'/messages/{student.id}', {'content': 'Ответ психолога'})
+    html = s.get(f'/messages/{psych.id}?partial=1&after={first.id}').get_data(as_text=True)
+    assert 'Ответ психолога' in html and 'Первое' not in html and '<html' not in html
+    assert Message.query.filter_by(sender_id=psych.id).one().is_read
+
+
+# ---------- регрессии по ревью сценариев ----------
+
+def test_dashboard_checkmark_keeps_note(app, make_user, login_as):
+    psych, test = _alert_setup(make_user, login_as)
+    login_as(make_user('100000000001')).post(f'/tests/{test.id}/take', answer_all(test, 2))
+    result = TestResult.query.one()
+    p = login_as(psych)
+    p.post(f'/test_result/{result.id}/review', {'action': 'note', 'note': 'Звонили маме'})
+    p.post(f'/test_result/{result.id}/review', {'action': 'review', 'next': '/dashboard'})
+    result = db.session.get(TestResult, result.id)
+    assert result.reviewed_at and result.psychologist_note == 'Звонили маме'
+
+
+def test_overlapping_ranges_use_the_chosen_interpretation(app, make_user, login_as):
+    psych = make_user('psych', role='psychologist')
+    test = make_scale_test(psych)
+    db.session.add_all([
+        TestInterpretation(test_id=test.id, min_score=3, max_score=6, text='Риск', is_alert=True),
+        TestInterpretation(test_id=test.id, min_score=5, max_score=6, text='Норма'),
+    ])
+    db.session.commit()
+    s = login_as(make_user('100000000001'))
+    s.post(f'/tests/{test.id}/take', answer_all(test, 2))  # 6 баллов → «Норма» (больший «от»)
+    result = TestResult.query.one()
+    assert result.result_text == 'Норма'
+    assert services.pending_alert_count(psych.id) == 0
+    assert not services.result_is_alert(result)
+    assert 'может быть непросто' not in s.get(f'/test_result/{result.id}').get_data(as_text=True)
+
+
+def test_retake_interval_validation_and_time_display(app, make_user, login_as):
+    import re
+    psych = make_user('psych', role='psychologist')
+    test = make_scale_test(psych)
+    p = login_as(psych)
+    for bad in ['3000000', '99999999999999999999', '1e3', '-1']:
+        p.post(f'/tests/{test.id}/edit', {'title': test.title, 'is_active': 'on', 'retake_after_days': bad})
+        assert db.session.get(Test, test.id).retake_after_days is None, bad
+    p.post(f'/tests/{test.id}/edit', {'title': test.title, 'is_active': 'on', 'retake_after_days': '1'})
+    s = login_as(make_user('100000000001'))
+    s.post(f'/tests/{test.id}/take', answer_all(test, 0))
+    page = s.get('/tests').get_data(as_text=True)
+    assert re.search(r'повторно — с \d{2}\.\d{2}\.\d{4} \d{2}:\d{2}', page)
+
+
+def test_history_with_missing_score_and_bulk_garbage_ids(app, make_user, login_as):
+    psych, test = _alert_setup(make_user, login_as)
+    student = make_user('100000000001')
+    db.session.add(TestResult(user_id=student.id, test_id=test.id, score=None, result_text='старый',
+                              created_at=datetime.utcnow() - timedelta(days=3)))
+    db.session.commit()
+    test.retake_after_days = 0
+    db.session.commit()
+    login_as(student).post(f'/tests/{test.id}/take', answer_all(test, 2))
+    latest = TestResult.query.order_by(TestResult.id.desc()).first()
+    p = login_as(psych)
+    page = p.get(f'/test_result/{latest.id}').get_data(as_text=True)
+    assert 'None' not in page and '(+' not in page
+    assert p.post('/alerts', {'result_ids[]': ['²', 'abc', str(latest.id)]}).status_code == 302
+    assert services.pending_alert_count(psych.id) == 0
+
+
+def test_chat_partial_marker_and_anonymous_times(app, make_user, login_as):
+    import re
+    psych = make_user('psych', role='psychologist')
+    student = make_user('100000000001')
+    s = login_as(student)
+    s.post(f'/messages/{psych.id}/anonymous', {'content': 'Мне плохо'})
+    resp = s.get(f'/messages/{psych.id}/anonymous?partial=1&after=0')
+    assert resp.headers.get('X-Chat-Partial') == '1'
+    p = login_as(psych)
+    p.get('/messages')
+    token = AnonThread.query.one().token
+    html = p.get(f'/messages/anonymous/{token}?partial=1&after=0').get_data(as_text=True)
+    assert 'Мне плохо' in html and not re.search(r'\d{2}:\d{2}', html)

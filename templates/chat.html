@@ -31,19 +31,11 @@
             </div>
         {% endif %}
 
-        <div class="chat-scroll" id="chatScroll">
-            {% for message in messages %}
-                {% set mine = message.sender_id == me.id %}
-                <div class="chat-bubble {{ 'mine' if mine }}">
-                    <div class="text-pre">{{ message.content }}</div>
-                    <div class="chat-meta">
-                        {{ 'Вы' if mine else chat_title }} · {{ message.created_at|ts }}
-                        {% if mine and message.is_read %}· <i class="bi bi-check2-all" title="Прочитано"></i>{% endif %}
-                    </div>
-                </div>
-            {% else %}
-                <div class="text-center text-muted small py-4">Сообщений пока нет — напишите первым.</div>
-            {% endfor %}
+        <div class="chat-scroll" id="chatScroll" data-poll-url="{{ post_url }}">
+            {% if not messages %}
+                <div class="text-center text-muted small py-4" id="chatEmpty">Сообщений пока нет — напишите первым.</div>
+            {% endif %}
+            <div id="chatMessages">{% include '_chat_bubbles.html' %}</div>
             <div id="bottom"></div>
         </div>
 
@@ -90,6 +82,44 @@
 (function () {
   const box = document.getElementById('chatScroll');
   if (box) box.scrollTop = box.scrollHeight;
+
+  // Новые сообщения подгружаются сами, пока вкладка открыта
+  const list = document.getElementById('chatMessages');
+  function lastId() {
+    const bubbles = list.querySelectorAll('.chat-bubble[data-id]');
+    return bubbles.length ? bubbles[bubbles.length - 1].dataset.id : 0;
+  }
+  let busy = false, stopped = false;
+  function poll() {
+    if (document.hidden || busy || stopped) return;
+    busy = true;
+    const url = box.dataset.pollUrl + '?partial=1&after=' + lastId();
+    fetch(url, {credentials: 'same-origin'})
+      .then(function (r) {
+        // сессия закончилась (редирект на вход) — перестаём опрашивать, страницу не трогаем
+        if (!r.ok || r.redirected || r.headers.get('X-Chat-Partial') !== '1') { stopped = true; return ''; }
+        return r.text();
+      })
+      .then(function (html) {
+        if (!html.trim()) return;
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
+        tmp.querySelectorAll('.chat-bubble[data-id]').forEach(function (b) {
+          if (!list.querySelector('.chat-bubble[data-id="' + b.dataset.id + '"]')) list.appendChild(b);
+        });
+        const empty = document.getElementById('chatEmpty');
+        if (empty) empty.remove();
+        if (nearBottom) box.scrollTop = box.scrollHeight;
+      })
+      .catch(function () {})
+      .finally(function () { busy = false; });
+  }
+  if (box && list) {
+    setInterval(poll, 8000);
+    // вернулись на вкладку — обновляем сразу, не дожидаясь следующего цикла
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); });
+  }
   const input = document.getElementById('messageInput');
   if (input) {
     input.addEventListener('keydown', function (e) {

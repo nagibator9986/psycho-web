@@ -10,29 +10,43 @@
     <div class="alert alert-info">Вы видите список как студент. Проходить тесты могут только студенты — для вас открывается предпросмотр.</div>
 {% endif %}
 
-{% if tests %}
+{% if states %}
     <div class="row g-4">
-        {% for test in tests %}
-        {% set done = completed.get(test.id) %}
+        {% for state in states %}
+        {% set test = state.test %}
         <div class="col-md-6 col-lg-4">
-            <div class="card h-100 shadow-sm">
+            <div class="card h-100">
                 <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                        <span class="feature-icon mb-0" style="width:40px;height:40px;font-size:1.1rem;"><i class="bi bi-clipboard2-pulse"></i></span>
+                        {% if state.last and not state.can_take %}
+                            <span class="badge text-bg-success"><i class="bi bi-check2"></i> пройден</span>
+                        {% elif state.last %}
+                            <span class="badge text-bg-primary">можно пройти снова</span>
+                        {% else %}
+                            <span class="badge text-bg-warning">новый</span>
+                        {% endif %}
+                    </div>
                     <h5 class="card-title">{{ test.title }}</h5>
                     {% if test.description %}
                         <p class="card-text text-muted small">{{ test.description|truncate(140) }}</p>
                     {% endif %}
                     <p class="card-text small text-muted mb-0">
-                        {{ test.questions|length }} вопросов
+                        {{ test.questions|length }} вопросов · около {{ [((test.questions|length) / 3)|round(0, 'ceil')|int, 1]|max }} мин
                         {% if test.title_kk or test.description_kk %} · RU / KZ{% endif %}
                     </p>
                 </div>
                 <div class="card-footer bg-transparent border-0 pb-3">
-                    {% if done %}
-                        <span class="text-success"><i class="bi bi-check2-circle"></i> Пройден {{ done.created_at|ts('%d.%m.%Y') }}</span>
-                    {% else %}
+                    {% if state.can_take %}
                         <a href="{{ url_for('take_test', test_id=test.id) }}" class="btn btn-primary btn-sm">
-                            {{ 'Пройти тест' if is_student() else 'Предпросмотр' }}
+                            {% if not is_student() %}Предпросмотр{% elif state.last %}Пройти снова{% else %}Пройти тест{% endif %}
                         </a>
+                        {% if state.last %}<span class="small text-muted ms-2">последний раз {{ state.last.created_at|ts('%d.%m.%Y') }}</span>{% endif %}
+                    {% else %}
+                        <span class="small text-muted">
+                            Пройден {{ state.last.created_at|ts('%d.%m.%Y') }}
+                            {% if state.retake_from %} · повторно — с {{ state.retake_from|ts('%d.%m.%Y %H:%M') }}{% endif %}
+                        </span>
                     {% endif %}
                 </div>
             </div>

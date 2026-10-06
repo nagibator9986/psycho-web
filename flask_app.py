@@ -327,7 +327,11 @@ app.jinja_env.globals.update(
 
 @app.context_processor
 def inject_site():
+    pending_alerts = 0
+    if current_user.is_authenticated and current_user.role == 'psychologist':
+        pending_alerts = services.pending_alert_count(current_user.id)
     return {
+        'pending_alerts': pending_alerts,
         'current_year': now_local().year,
         'support_email': app.config['SUPPORT_EMAIL'],
         'support_phone': app.config['SUPPORT_PHONE'],
@@ -642,9 +646,14 @@ def dashboard():
             .limit(5)
             .all()
         )
-        alert_query = services.alert_results_query(user.id)
+        alert_query = services.alert_results_query(user.id, unreviewed_only=True)
         alert_count = alert_query.count()
-        alert_results = alert_query.order_by(TestResult.created_at.desc()).limit(8).all()
+        alert_results = (
+            alert_query.options(joinedload(TestResult.user).joinedload(User.group), joinedload(TestResult.test))
+            .order_by(TestResult.created_at.desc())
+            .limit(8)
+            .all()
+        )
         recent_results = (
             TestResult.query.join(Test, Test.id == TestResult.test_id)
             .filter(Test.user_id == user.id)
@@ -668,11 +677,7 @@ def dashboard():
             ).count() > 0,
         )
 
-    completed_ids = {r.test_id for r in TestResult.query.filter_by(user_id=user.id).all()}
-    available_tests = [
-        t for t in Test.query.filter_by(is_active=True).order_by(Test.created_at.desc()).all()
-        if t.id not in completed_ids and t.questions
-    ][:5]
+    available_tests = [s for s in student_test_states(user) if s['can_take']][:5]
     recent_results = (
         TestResult.query.filter_by(user_id=user.id)
         .order_by(TestResult.created_at.desc())
@@ -698,6 +703,27 @@ def dashboard():
         upcoming_appointments=upcoming_appointments,
         psychologists=psychologists,
     )
+
+
+def student_test_states(user: User) -> list[dict]:
+    """Активные тесты с вопросами и их состояние для студента."""
+    last: dict[int, TestResult] = {}
+    for r in TestResult.query.filter_by(user_id=user.id).order_by(TestResult.created_at.asc()).all():
+        last[r.test_id] = r
+    now = datetime.utcnow()
+    states = []
+    for t in Test.query.filter_by(is_active=True).order_by(Test.created_at.desc()).all():
+        if not t.questions:
+            continue
+        result = last.get(t.id)
+        available_from = services.retake_available_from(t, result)
+        states.append({
+            'test': t,
+            'last': result,
+            'can_take': available_from is not None and available_from <= now,
+            'retake_from': available_from if result is not None and available_from is not None else None,
+        })
+    return states
 
 
 def can_view_profile(user: User) -> bool:
@@ -791,18 +817,7 @@ def tests():
             total_results=sum(counts.values()),
         )
 
-    available_tests = [
-        t for t in Test.query.filter_by(is_active=True).order_by(Test.created_at.desc()).all()
-        if t.questions
-    ]
-    completed = {}
-    for r in TestResult.query.filter_by(user_id=user.id).order_by(TestResult.created_at.asc()).all():
-        completed[r.test_id] = r
-    return render_template(
-        'student_tests.html',
-        tests=available_tests,
-        completed=completed,
-    )
+    return render_template('student_tests.html', states=student_test_states(user))
 
 
 @app.route('/tests/create', methods=['GET', 'POST'])
@@ -1085,6 +1100,19 @@ def edit_test(test_id):
         test.description = form_str('description') or None
         test.description_kk = form_str('description_kk') or None
         test.is_active = 'is_active' in request.form
+        retake = request.form.get('retake_after_days', '').strip()
+        if retake == '':
+            test.retake_after_days = None
+        else:
+            try:
+                days = int(retake)
+            except ValueError:
+                days = -1
+            if not 0 <= days <= 3650:
+                db.session.rollback()
+                flash('Интервал повторного прохождения — от 0 до 3650 дней', 'danger')
+                return redirect(url_for('edit_test', test_id=test.id))
+            test.retake_after_days = days
         if test.is_active and not test.questions:
             flash('В тесте нет вопросов — студенты увидят его, когда вы их добавите', 'warning')
         db.session.commit()
@@ -1128,16 +1156,23 @@ def _results_rows(test: Test):
 def test_results(test_id):
     test = own_test_or_403(test_id)
     results = _results_rows(test)
-    alert_ranges = [(i.min_score, i.max_score) for i in test.interpretations if i.is_alert]
+    interpretations = list(test.interpretations)
     alerts = {
         r.id for r in results
-        if r.score is not None and any(lo <= r.score <= hi for lo, hi in alert_ranges)
+        if (i := services.interpretation_for_score(interpretations, r.score)) is not None and i.is_alert
     }
     groups = sorted({r.user.group.name for r in results if r.user.group})
+    group_sizes = dict(
+        db.session.query(User.group_id, func.count(User.id))
+        .filter(User.role == 'student', User.group_id.isnot(None))
+        .group_by(User.group_id)
+        .all()
+    )
     return render_template(
         'test_results.html',
         test=test,
         results=results,
+        summary=services.group_summary(test, results, group_sizes),
         alerts=alerts,
         groups=groups,
         max_score=services.test_max_score(test),
@@ -1305,6 +1340,20 @@ def take_test(test_id):
         flash('Этот тест сейчас недоступен', 'info')
         return redirect(url_for('tests'))
 
+    if is_student():
+        last = (
+            TestResult.query.filter_by(user_id=current_user.id, test_id=test.id)
+            .order_by(TestResult.created_at.desc())
+            .first()
+        )
+        available_from = services.retake_available_from(test, last)
+        if available_from is None or available_from > datetime.utcnow():
+            if available_from is None:
+                flash('Вы уже прошли этот тест', 'info')
+            else:
+                flash(f'Пройти тест повторно можно с {_fmt_ts(available_from, "%d.%m.%Y %H:%M")}', 'info')
+            return redirect(url_for('tests'))
+
     has_kk = services.test_has_kazakh(test)
     lang = request.args.get('lang') or request.form.get('lang')
     if request.method == 'GET' and not lang and has_kk:
@@ -1415,13 +1464,100 @@ def test_result(result_id):
             'score': sum((a.option.score or 0) for a in answers if a.option is not None),
         })
 
+    history = []
+    if not is_student():
+        history = (
+            TestResult.query.filter_by(user_id=result.user_id, test_id=result.test_id)
+            .order_by(TestResult.created_at.asc())
+            .all()
+        )
     return render_template(
         'test_result.html',
         result=result,
+        history=history if len(history) > 1 else [],
         rows=rows,
         max_score=services.test_max_score(test),
         profile=services.subscale_profile(test, services.per_question_scores(result)),
         is_alert=services.result_is_alert(result),
+    )
+
+
+@app.route('/test_result/<int:result_id>/review', methods=['POST'])
+@roles_required('psychologist')
+def review_result(result_id):
+    """Заметка психолога к результату и отметка «разобрано»."""
+    result = get_or_404(TestResult, result_id)
+    if result.test.user_id != current_user.id:
+        abort(403)
+
+    action = request.form.get('action')
+    if action in ('note', 'review') and 'note' in request.form:
+        # быстрая отметка с панели заметку не присылает — тогда её не трогаем
+        result.psychologist_note = form_str('note', 5000) or None
+    if action == 'review':
+        result.reviewed_at = datetime.utcnow()
+        result.reviewed_by_id = current_user.id
+        flash('Результат отмечен как разобранный', 'success')
+    elif action == 'reopen':
+        result.reviewed_at = None
+        result.reviewed_by_id = None
+        flash('Результат снова в списке «Требуют внимания»', 'info')
+    elif action == 'note':
+        flash('Заметка сохранена', 'success')
+    else:
+        abort(400)
+    db.session.commit()
+    return redirect_back('test_result', result_id=result.id)
+
+
+@app.route('/alerts', methods=['GET', 'POST'])
+@roles_required('psychologist')
+def alerts():
+    """Все неразобранные результаты из зон «требует внимания»."""
+    if request.method == 'POST':
+        ids = []
+        for raw in request.form.getlist('result_ids[]'):
+            try:
+                ids.append(int(raw))
+            except ValueError:
+                continue
+        own = (
+            services.alert_results_query(current_user.id, unreviewed_only=True)
+            .filter(TestResult.id.in_(ids))
+            .all()
+        ) if ids else []
+        now = datetime.utcnow()
+        for r in own:
+            r.reviewed_at = now
+            r.reviewed_by_id = current_user.id
+        db.session.commit()
+        flash(f'Отмечено как разобранные: {len(own)}', 'success')
+        return redirect(url_for('alerts', test_id=request.args.get('test_id') or None))
+
+    test_id = request.args.get('test_id', type=int)
+    query = services.alert_results_query(current_user.id, unreviewed_only=True)
+    if test_id:
+        query = query.filter(TestResult.test_id == test_id)
+    items = (
+        query.options(joinedload(TestResult.user).joinedload(User.group), joinedload(TestResult.test))
+        .order_by(TestResult.created_at.desc())
+        .limit(300)
+        .all()
+    )
+    per_test = dict(
+        services.alert_results_query(current_user.id, unreviewed_only=True)
+        .with_entities(TestResult.test_id, func.count(func.distinct(TestResult.id)))
+        .group_by(TestResult.test_id)
+        .all()
+    )
+    tests_with_alerts = Test.query.filter(Test.id.in_(per_test.keys())).all() if per_test else []
+    return render_template(
+        'alerts.html',
+        items=items,
+        total=sum(per_test.values()),
+        per_test=per_test,
+        tests_with_alerts=tests_with_alerts,
+        test_id=test_id,
     )
 
 
@@ -1444,7 +1580,11 @@ def student_list():
         .order_by(User.created_at.desc())
         .all()
     )
-    return render_template('student_list.html', students=students)
+    attention_ids = {
+        r.user_id for r in services.alert_results_query(current_user.id, unreviewed_only=True)
+        .with_entities(TestResult.user_id).all()
+    }
+    return render_template('student_list.html', students=students, attention_ids=attention_ids)
 
 
 @app.route('/analytics/students/<int:student_id>')
@@ -1992,6 +2132,18 @@ def _render_chat(partner: User, anonymous: bool, title: str, avatar_user, post_u
         return redirect(post_url + '#bottom')
 
     thread_filter = services.thread_messages_filter(user.id, partner.id, anonymous)
+
+    if request.args.get('partial'):
+        # Подгрузка новых сообщений без перезагрузки страницы
+        after = request.args.get('after', 0, type=int)
+        fresh = Message.query.filter(thread_filter, Message.id > after).order_by(Message.id.asc()).all()
+        incoming = [m.id for m in fresh if m.recipient_id == user.id and not m.is_read]
+        if incoming:
+            Message.query.filter(Message.id.in_(incoming)).update({'is_read': True}, synchronize_session=False)
+            db.session.commit()
+        html = render_template('_chat_bubbles.html', messages=fresh, chat_title=title, anonymous=anonymous)
+        return Response(html, mimetype='text/html', headers={'X-Chat-Partial': '1'})
+
     msgs = Message.query.filter(thread_filter).order_by(Message.created_at.asc(), Message.id.asc()).all()
     Message.query.filter(
         thread_filter, Message.recipient_id == user.id, Message.is_read.isnot(True)

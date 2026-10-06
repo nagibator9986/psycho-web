@@ -11,6 +11,12 @@
       <span class="input-group-text"><i class="bi bi-search"></i></span>
       <input id="searchInput" type="search" class="form-control" placeholder="ФИО, ИИН, email, группа">
     </div>
+    {% if attention_ids %}
+    <div class="form-check align-self-center">
+      <input class="form-check-input" type="checkbox" id="attentionOnly">
+      <label class="form-check-label small" for="attentionOnly">Только требующие внимания ({{ attention_ids|length }})</label>
+    </div>
+    {% endif %}
     <select id="groupFilter" class="form-select" style="max-width: 220px;">
       <option value="">Все группы</option>
     </select>
@@ -35,11 +41,15 @@
     <tbody>
       {% for student in students %}
       {% set group_name = student.group.name if student.group else '' %}
-      <tr data-group="{{ group_name }}" data-date="{{ student.created_at.isoformat() if student.created_at else '' }}">
+      <tr data-group="{{ group_name }}" data-date="{{ student.created_at.isoformat() if student.created_at else '' }}"
+          data-attention="{{ 1 if student.id in attention_ids else 0 }}">
         <td>
           <a href="{{ url_for('student_analytics', student_id=student.id) }}" class="text-decoration-none fw-semibold">
             {{ student.full_name or 'Не указано' }}
           </a>
+          {% if student.id in attention_ids %}
+            <span class="badge text-bg-warning ms-1" title="Есть неразобранный результат из зоны «требует внимания»"><i class="bi bi-exclamation-octagon"></i> внимание</span>
+          {% endif %}
           <div class="small text-muted d-none">{{ student.email }}</div>
         </td>
         <td class="small">{{ student.username }}</td>
@@ -69,6 +79,7 @@
   if (!rows.length) return;
   const searchInput = document.getElementById('searchInput');
   const groupFilter = document.getElementById('groupFilter');
+  const attentionOnly = document.getElementById('attentionOnly');
   const counter = document.getElementById('resultCounter');
 
   Array.from(new Set(rows.map(r => r.dataset.group).filter(Boolean)))
@@ -78,9 +89,11 @@
   function apply() {
     const q = searchInput.value.trim().toLowerCase();
     const g = groupFilter.value;
+    const onlyAttention = attentionOnly && attentionOnly.checked;
     let shown = 0;
     rows.forEach(row => {
-      const ok = (!g || row.dataset.group === g) && (!q || row.textContent.toLowerCase().includes(q));
+      const ok = (!g || row.dataset.group === g) && (!q || row.textContent.toLowerCase().includes(q))
+        && (!onlyAttention || row.dataset.attention === '1');
       row.style.display = ok ? '' : 'none';
       if (ok) shown++;
     });
@@ -107,6 +120,7 @@
 
   searchInput.addEventListener('input', apply);
   groupFilter.addEventListener('change', apply);
+  if (attentionOnly) attentionOnly.addEventListener('change', apply);
   apply();
 })();
 </script>

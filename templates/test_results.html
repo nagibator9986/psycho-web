@@ -23,6 +23,21 @@
 </div>
 
 {% if results %}
+<ul class="nav nav-pills mb-3" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-results" type="button" role="tab">
+      <i class="bi bi-table"></i> Результаты
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-summary" type="button" role="tab">
+      <i class="bi bi-diagram-3"></i> Сводка по группам
+    </button>
+  </li>
+</ul>
+
+<div class="tab-content">
+<div class="tab-pane fade show active" id="tab-results" role="tabpanel">
 <div class="d-flex flex-wrap gap-2 mb-3">
   <input id="searchInput" type="search" class="form-control" style="max-width: 280px" placeholder="Поиск по ФИО или логину">
   <select id="groupFilter" class="form-select" style="max-width: 220px">
@@ -60,7 +75,13 @@
         <td>{{ g or '—' }}</td>
         <td class="text-nowrap">{{ r.created_at|ts }}</td>
         <td class="text-end fw-semibold">{{ r.score if r.score is not none else '—' }}</td>
-        <td class="small">{{ (r.result_text or '')|truncate(90) }}</td>
+        <td class="small">
+          {{ (r.result_text or '')|truncate(90) }}
+          {% if r.id in alerts %}
+            {% if r.reviewed_at %}<span class="badge text-bg-success ms-1">разобрано</span>
+            {% else %}<span class="badge text-bg-warning ms-1">не разобрано</span>{% endif %}
+          {% endif %}
+        </td>
         <td><a href="{{ url_for('test_result', result_id=r.id) }}" class="btn btn-sm btn-outline-primary">Ответы</a></td>
       </tr>
       {% endfor %}
@@ -68,6 +89,57 @@
   </table>
 </div>
 <div class="small text-muted" id="resultCounter"></div>
+</div>
+
+<div class="tab-pane fade" id="tab-summary" role="tabpanel">
+  <p class="small text-muted">
+    По последней попытке каждого студента. «Охват» — сколько студентов группы прошли тест.
+  </p>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead>
+        <tr>
+          <th>Группа</th>
+          <th class="text-end">Прошли</th>
+          <th class="text-end">Средний балл</th>
+          {% for i in test.interpretations %}
+            <th class="text-end" title="{{ i.text }}">{{ i.min_score }}–{{ i.max_score }}{% if i.is_alert %} <i class="bi bi-bell-fill text-danger"></i>{% endif %}</th>
+          {% endfor %}
+          {% if summary|selectattr('no_band')|list %}<th class="text-end">вне диапазонов</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% set show_no_band = summary|selectattr('no_band')|list %}
+        {% for row in summary %}
+        <tr class="{{ 'table-danger' if row.alerts }}">
+          <td class="fw-semibold">{{ row.group }}</td>
+          <td class="text-end text-nowrap">
+            {{ row.passed }}{% if row.members %} из {{ row.members }} <small class="text-muted">({{ row.coverage }}%)</small>{% endif %}
+          </td>
+          <td class="text-end">{{ row.avg if row.avg is not none else '—' }}</td>
+          {% for i in test.interpretations %}
+            {% set n = row.bands.get(i.id, 0) %}
+            <td class="text-end {{ 'fw-semibold text-danger' if i.is_alert and n }}">
+              {{ n or '·' }}{% if n and row.passed %} <small class="text-muted fw-normal">{{ (n * 100 / row.passed)|round|int }}%</small>{% endif %}
+            </td>
+          {% endfor %}
+          {% if show_no_band %}<td class="text-end">{{ row.no_band or '·' }}</td>{% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if test.interpretations %}
+  <div class="small text-muted mt-2">
+    {% for i in test.interpretations %}
+      <div><b>{{ i.min_score }}–{{ i.max_score }}</b>{% if i.is_alert %} <i class="bi bi-bell-fill text-danger"></i>{% endif %}: {{ i.text|truncate(90) }}</div>
+    {% endfor %}
+  </div>
+  {% else %}
+    <div class="alert alert-info small mt-2">Задайте интерпретации в тесте — тогда здесь появится распределение по уровням.</div>
+  {% endif %}
+</div>
+</div>
 {% else %}
   <div class="alert alert-info">Тест ещё никто не прошёл.</div>
 {% endif %}
