@@ -1145,3 +1145,6 @@ a .stat-tile:hover, a.stat-tile:hover { border-color: #c7cbfa; box-shadow: var(-
     .page-actions { width: 100%; }
     .landing { padding: 0 0.9rem 2rem; }
 }
+
+.alert-toast.alert-support { --toast-color: #e11d48; width: 420px; }
+.alert-toast.alert-support .alert-text { color: var(--app-text); }

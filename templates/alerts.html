@@ -19,6 +19,31 @@
 </ul>
 {% endif %}
 
+{% if flagged_posts or flagged_comments %}
+<div class="card mb-4 result-alert">
+  <div class="card-header"><h5 class="mb-0"><i class="bi bi-flag text-danger"></i> Форум: на проверке ({{ flagged_posts|length + flagged_comments|length }})</h5></div>
+  <div class="list-group list-group-flush">
+    {% for p in flagged_posts %}
+    <a href="{{ url_for('view_post', post_id=p.id) }}" class="list-group-item list-group-item-action d-flex justify-content-between gap-2">
+      <span><span class="fw-semibold">{{ p.title|truncate(70) }}</span><br><small class="text-muted">{{ p.content|truncate(110) }}</small></span>
+      <span class="badge {{ 'text-bg-warning' if p.flag_reason == 'Жалоба' else 'bg-danger' }} align-self-start">{{ p.flag_reason }}</span>
+    </a>
+    {% endfor %}
+    {% for c in flagged_comments %}
+    <a href="{{ url_for('view_post', post_id=c.post_id) }}#comments" class="list-group-item list-group-item-action d-flex justify-content-between gap-2">
+      <span><small class="text-muted">комментарий:</small> {{ c.content|truncate(120) }}</span>
+      <span class="badge {{ 'text-bg-warning' if c.flag_reason == 'Жалоба' else 'bg-danger' }} align-self-start">{{ c.flag_reason }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  <div class="card-footer small text-muted">
+    «Возможный кризис» — в тексте есть фразы о желании умереть или навредить себе; автору уже показаны телефоны доверия.
+    Анонимному автору можно ответить комментарием под постом.
+  </div>
+</div>
+<div class="section-title"><i class="bi bi-clipboard2-pulse"></i> Результаты тестов</div>
+{% endif %}
+
 {% if items %}
 <form method="post" action="{{ url_for('alerts', test_id=test_id) }}"
       data-confirm="Отметить выбранные результаты как разобранные?">

@@ -327,11 +327,14 @@ app.jinja_env.globals.update(
 
 @app.context_processor
 def inject_site():
-    pending_alerts = 0
+    pending_alerts = flagged_forum = 0
+    if current_user.is_authenticated and current_user.is_staff:
+        flagged_forum = sum(services.flagged_forum_counts())
     if current_user.is_authenticated and current_user.role == 'psychologist':
-        pending_alerts = services.pending_alert_count(current_user.id)
+        pending_alerts = services.pending_alert_count(current_user.id) + flagged_forum
     return {
         'pending_alerts': pending_alerts,
+        'flagged_forum': flagged_forum,
         'current_year': now_local().year,
         'support_email': app.config['SUPPORT_EMAIL'],
         'support_phone': app.config['SUPPORT_PHONE'],
@@ -426,6 +429,27 @@ def set_password_command(username, password):
     user.must_change_password = False
     db.session.commit()
     click.echo(f'Пароль пользователя {username} обновлён')
+
+
+@app.cli.command('backup-db')
+@click.option('--keep', default=14, show_default=True, help='Сколько последних копий хранить')
+def backup_db_command(keep):
+    """Резервная копия SQLite-базы в instance/backups (для ежедневной задачи)."""
+    import sqlite3
+
+    db_path = db.engine.url.database
+    if db.engine.url.get_backend_name() != 'sqlite' or not db_path:
+        raise click.ClickException('Команда работает только с SQLite')
+    folder = os.path.join(app.instance_path, 'backups')
+    os.makedirs(folder, exist_ok=True)
+    target = os.path.join(folder, f"psych_help-{datetime.now().strftime('%Y%m%d-%H%M%S')}.db")
+    # backup API делает согласованную копию даже во время работы сайта
+    with sqlite3.connect(db_path) as src, sqlite3.connect(target) as dst:
+        src.backup(dst)
+    copies = sorted(f for f in os.listdir(folder) if f.startswith('psych_help-') and f.endswith('.db'))
+    for old in copies[:-keep] if keep > 0 else []:
+        os.remove(os.path.join(folder, old))
+    click.echo(f'Копия: {target} (хранится последних: {min(len(copies), keep)})')
 
 
 @app.cli.command('audit-default-passwords')
@@ -623,6 +647,17 @@ def dashboard():
 
     now = now_local()
     unread_messages = Message.query.filter_by(recipient_id=user.id, is_read=False).count()
+    owner_field = Appointment.psychologist_id if user.role == 'psychologist' else Appointment.student_id
+    today_appointments = (
+        Appointment.query.filter(
+            owner_field == user.id,
+            Appointment.status == 'confirmed',
+            Appointment.appointment_date >= now - timedelta(hours=1),
+            Appointment.appointment_date < now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1),
+        )
+        .order_by(Appointment.appointment_date.asc())
+        .all()
+    )
 
     if user.role == 'psychologist':
         tests = (
@@ -664,6 +699,7 @@ def dashboard():
         return render_template(
             'psychologist_dashboard.html',
             user=user,
+            today_appointments=today_appointments,
             tests=tests,
             unread_messages=unread_messages,
             students_count=User.query.filter_by(role='student').count(),
@@ -697,6 +733,7 @@ def dashboard():
     return render_template(
         'student_dashboard.html',
         user=user,
+        today_appointments=today_appointments,
         available_tests=available_tests,
         recent_results=recent_results,
         unread_messages=unread_messages,
@@ -1168,15 +1205,63 @@ def test_results(test_id):
         .group_by(User.group_id)
         .all()
     )
+    passed_ids = {r.user_id for r in results}
+    not_passed: dict[str, dict] = {}
+    for student in (
+        User.query.filter(User.role == 'student', User.group_id.isnot(None))
+        .options(joinedload(User.group))
+        .order_by(User.full_name)
+        .all()
+    ):
+        if student.id in passed_ids:
+            continue
+        entry = not_passed.setdefault(student.group.name, {'group': student.group, 'students': []})
+        entry['students'].append(student)
     return render_template(
         'test_results.html',
         test=test,
         results=results,
         summary=services.group_summary(test, results, group_sizes),
+        not_passed=not_passed,
         alerts=alerts,
         groups=groups,
         max_score=services.test_max_score(test),
     )
+
+
+@app.route('/tests/<int:test_id>/remind', methods=['POST'])
+@roles_required('psychologist')
+def remind_group(test_id):
+    """Сообщение студентам группы, которые ещё не прошли тест."""
+    test = own_test_or_403(test_id)
+    back = redirect(url_for('test_results', test_id=test.id) + '#tab-summary')
+    if not test.is_active or not test.questions:
+        flash('Тест не активен — студенты его не видят', 'warning')
+        return back
+    group = get_or_404(Group, form_int('group_id'))
+    passed_ids = {r.user_id for r in TestResult.query.filter_by(test_id=test.id).all()}
+    text = (f'Здравствуйте! Пожалуйста, пройдите тест «{test.title}» в разделе «Тесты» — '
+            f'это займёт несколько минут. Ответы видит только психолог.')
+    since = datetime.utcnow() - timedelta(hours=24)
+    sent = skipped = 0
+    for student in User.query.filter_by(role='student', group_id=group.id).all():
+        if student.id in passed_ids:
+            continue
+        recent = Message.query.filter(
+            Message.sender_id == current_user.id, Message.recipient_id == student.id,
+            Message.content == text, Message.created_at >= since,
+        ).first()
+        if recent:
+            skipped += 1
+            continue
+        _notify(current_user.id, student.id, text)
+        sent += 1
+    db.session.commit()
+    msg = f'Напоминание отправлено: {sent}'
+    if skipped:
+        msg += f' (ещё {skipped} уже получили его за последние сутки)'
+    flash(msg, 'success')
+    return back
 
 
 @app.route('/tests/<int:test_id>/download_results')
@@ -1553,6 +1638,8 @@ def alerts():
     tests_with_alerts = Test.query.filter(Test.id.in_(per_test.keys())).all() if per_test else []
     return render_template(
         'alerts.html',
+        flagged_posts=Post.query.filter(Post.flagged_at.isnot(None)).order_by(Post.flagged_at.desc()).all(),
+        flagged_comments=Comment.query.filter(Comment.flagged_at.isnot(None)).order_by(Comment.flagged_at.desc()).all(),
         items=items,
         total=sum(per_test.values()),
         per_test=per_test,
@@ -1917,6 +2004,22 @@ def can_moderate() -> bool:
     return current_user.is_authenticated and current_user.is_staff
 
 
+CRISIS_REASON = 'Возможный кризис'
+COMPLAINT_REASON = 'Жалоба'
+
+
+def flash_crisis_support() -> None:
+    flash('Похоже, вам сейчас очень тяжело. Вы не одни: телефон доверия 150 — бесплатно и анонимно, '
+          'при угрозе жизни — 112. Психолог тоже рядом: напишите ему в сообщениях, можно анонимно.',
+          'support')
+
+
+def _flag(item, reason: str) -> None:
+    if item.flagged_at is None:
+        item.flagged_at = datetime.utcnow()
+        item.flag_reason = reason
+
+
 @app.route('/posts')
 @login_required
 def posts():
@@ -1930,8 +2033,15 @@ def posts():
         .limit(5)
         .all()
     )
+    flagged_posts = flagged_comments = []
+    if can_moderate():
+        flagged_posts = Post.query.filter(Post.flagged_at.isnot(None)).order_by(Post.flagged_at.desc()).all()
+        flagged_comments = (
+            Comment.query.filter(Comment.flagged_at.isnot(None)).order_by(Comment.flagged_at.desc()).all()
+        )
     return render_template('posts.html', posts=pagination.items, pagination=pagination,
-                           psychologists=psychologists, can_moderate=can_moderate())
+                           psychologists=psychologists, can_moderate=can_moderate(),
+                           flagged_posts=flagged_posts, flagged_comments=flagged_comments)
 
 
 def _post_form_values():
@@ -1952,9 +2062,15 @@ def create_post():
             user_id=current_user.id,
             is_anonymous=is_student() and bool(request.form.get('is_anonymous')),
         )
+        crisis = is_student() and services.crisis_detected(title, content)
+        if crisis:
+            _flag(post, CRISIS_REASON)
         db.session.add(post)
         db.session.commit()
-        flash('Пост опубликован', 'success')
+        if crisis:
+            flash_crisis_support()
+        else:
+            flash('Пост опубликован', 'success')
         return redirect(url_for('view_post', post_id=post.id))
     return render_template('create_post.html', post=None, values={})
 
@@ -1980,6 +2096,10 @@ def edit_post(post_id):
         post.title, post.content = title, content
         if is_student():
             post.is_anonymous = bool(request.form.get('is_anonymous'))
+        crisis = is_student() and services.crisis_detected(title, content)
+        if crisis:
+            _flag(post, CRISIS_REASON)
+            flash_crisis_support()
         db.session.commit()
         flash('Пост обновлён', 'success')
         return redirect(url_for('view_post', post_id=post.id))
@@ -2009,15 +2129,63 @@ def add_comment(post_id):
         flash('Комментарий пустой', 'warning')
         return redirect(url_for('view_post', post_id=post.id))
 
-    db.session.add(Comment(
+    comment = Comment(
         content=content,
         user_id=current_user.id,
         post_id=post.id,
         is_anonymous=is_student() and bool(request.form.get('is_anonymous')),
-    ))
+    )
+    crisis = is_student() and services.crisis_detected(content)
+    if crisis:
+        _flag(comment, CRISIS_REASON)
+    db.session.add(comment)
     db.session.commit()
-    flash('Комментарий добавлен', 'success')
+    if crisis:
+        flash_crisis_support()
+    else:
+        flash('Комментарий добавлен', 'success')
     return redirect(url_for('view_post', post_id=post.id) + '#comments')
+
+
+@app.route('/posts/<int:post_id>/flag', methods=['POST'])
+@login_required
+def flag_post(post_id):
+    post = get_or_404(Post, post_id)
+    if post.user_id != current_user.id:
+        _flag(post, COMPLAINT_REASON)
+        db.session.commit()
+        flash('Спасибо. Модераторы посмотрят пост.', 'success')
+    return redirect(url_for('view_post', post_id=post.id))
+
+
+@app.route('/comments/<int:comment_id>/flag', methods=['POST'])
+@login_required
+def flag_comment(comment_id):
+    comment = get_or_404(Comment, comment_id)
+    if comment.user_id != current_user.id:
+        _flag(comment, COMPLAINT_REASON)
+        db.session.commit()
+        flash('Спасибо. Модераторы посмотрят комментарий.', 'success')
+    return redirect(url_for('view_post', post_id=comment.post_id) + '#comments')
+
+
+@app.route('/moderation/<kind>/<int:item_id>', methods=['POST'])
+@login_required
+def moderate(kind, item_id):
+    """Решение модератора по посту или комментарию на проверке: оставить или удалить."""
+    if not can_moderate():
+        abort(403)
+    model = {'post': Post, 'comment': Comment}.get(kind) or abort(404)
+    item = get_or_404(model, item_id)
+    if request.form.get('action') == 'delete':
+        db.session.delete(item)
+        flash('Удалено', 'success')
+    else:
+        item.flagged_at = None
+        item.flag_reason = None
+        flash('Оставлено, отметка снята', 'success')
+    db.session.commit()
+    return redirect_back('posts')
 
 
 @app.route('/comments/<int:comment_id>/delete', methods=['POST'])
@@ -2129,6 +2297,8 @@ def _render_chat(partner: User, anonymous: bool, title: str, avatar_user, post_u
             content=content, sender_id=user.id, recipient_id=partner.id, is_anonymous=anonymous,
         ))
         db.session.commit()
+        if user.role == 'student' and services.crisis_detected(content):
+            flash_crisis_support()
         return redirect(post_url + '#bottom')
 
     thread_filter = services.thread_messages_filter(user.id, partner.id, anonymous)

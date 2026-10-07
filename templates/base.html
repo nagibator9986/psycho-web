@@ -136,14 +136,15 @@
             <div class="alert alert-{{ category }} alert-toast" role="alert"
                  {% if category in ['success', 'info'] %}data-autohide{% endif %}>
                 <div class="alert-icon">
-                    {% if category == 'success' %}<i class="bi bi-check2"></i>
+                    {% if category == 'support' %}<i class="bi bi-heart-fill"></i>
+                    {% elif category == 'success' %}<i class="bi bi-check2"></i>
                     {% elif category == 'danger' %}<i class="bi bi-x-lg"></i>
                     {% elif category == 'warning' %}<i class="bi bi-exclamation-lg"></i>
                     {% else %}<i class="bi bi-info-lg"></i>{% endif %}
                 </div>
                 <div class="alert-body">
                     <span class="alert-title">
-                        {% if category == 'success' %}Готово{% elif category == 'danger' %}Ошибка{% elif category == 'warning' %}Внимание{% else %}Информация{% endif %}
+                        {% if category == 'support' %}Мы рядом{% elif category == 'success' %}Готово{% elif category == 'danger' %}Ошибка{% elif category == 'warning' %}Внимание{% else %}Информация{% endif %}
                     </span>
                     <span class="alert-text">{{ message }}</span>
                 </div>

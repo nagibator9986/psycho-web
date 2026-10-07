@@ -161,6 +161,10 @@ class Post(db.Model):
     # Пост от имени «Аноним» (доступно студентам)
     is_anonymous = db.Column(db.Boolean, default=False, nullable=False)
 
+    # На проверке у модераторов: жалоба или кризисные слова
+    flag_reason = db.Column(db.String(100))
+    flagged_at = db.Column(db.DateTime)
+
     comments = db.relationship(
         'Comment',
         backref='post',
@@ -184,6 +188,9 @@ class Comment(db.Model):
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_anonymous = db.Column(db.Boolean, default=False)
+
+    flag_reason = db.Column(db.String(100))
+    flagged_at = db.Column(db.DateTime)
 
 
 # =========================

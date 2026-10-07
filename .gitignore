@@ -13,3 +13,5 @@ static/reports/
 
 .pytest_cache/
 .DS_Store
+
+instance/backups/

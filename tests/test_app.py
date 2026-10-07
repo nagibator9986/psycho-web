@@ -831,3 +831,101 @@ def test_chat_partial_marker_and_anonymous_times(app, make_user, login_as):
     token = AnonThread.query.one().token
     html = p.get(f'/messages/anonymous/{token}?partial=1&after=0').get_data(as_text=True)
     assert 'Мне плохо' in html and not re.search(r'\d{2}:\d{2}', html)
+
+
+# ---------- форум: кризисные фразы и жалобы; напоминания; встреча сегодня; бэкап ----------
+
+def test_crisis_phrases_flag_post_and_show_support(app, make_user, login_as):
+    psych = make_user('psych', role='psychologist')
+    s = login_as(make_user('100000000001'))
+    resp = s.post('/posts/create', {'title': 'Не знаю', 'content': 'Иногда кажется, что не хочу жить', 'is_anonymous': '1'},
+                  follow_redirects=True)
+    page = resp.get_data(as_text=True)
+    assert '150' in page and 'тяжело' in page
+    post = Post.query.one()
+    assert post.flagged_at and post.flag_reason == 'Возможный кризис'
+    s.post('/posts/create', {'title': 'Сессия', 'content': 'Как готовиться к экзаменам?'})
+    assert Post.query.filter(Post.flagged_at.isnot(None)).count() == 1
+    assert services.crisis_detected('Өлгім келеді') and not services.crisis_detected('Хочу жить спокойно')
+
+    p = login_as(psych)
+    assert 'Возможный кризис' in p.get('/alerts').get_data(as_text=True)
+    with app.test_request_context():
+        assert services.flagged_forum_counts() == (1, 0)
+
+
+def test_complaints_and_moderation(app, make_user, login_as):
+    psych = make_user('psych', role='psychologist')
+    author = make_user('100000000001')
+    reader = login_as(make_user('100000000002'))
+    login_as(author).post('/posts/create', {'title': 'Пост', 'content': 'Текст'})
+    post = Post.query.one()
+    login_as(author).post(f'/posts/{post.id}/flag')
+    assert db.session.get(Post, post.id).flagged_at is None  # на свой нельзя
+    reader.post(f'/posts/{post.id}/flag')
+    assert db.session.get(Post, post.id).flag_reason == 'Жалоба'
+    assert reader.post(f'/moderation/post/{post.id}', {'action': 'delete'}).status_code == 403
+
+    p = login_as(psych)
+    assert 'На проверке' in p.get('/posts').get_data(as_text=True)
+    p.post(f'/moderation/post/{post.id}', {'action': 'keep'})
+    assert db.session.get(Post, post.id).flagged_at is None
+
+    reader.post(f'/posts/{post.id}/comment', {'content': 'обидный комментарий'})
+    comment = Comment.query.one()
+    login_as(author).post(f'/comments/{comment.id}/flag')
+    p.post(f'/moderation/comment/{comment.id}', {'action': 'delete'})
+    assert Comment.query.count() == 0
+
+
+def test_crisis_in_chat_shows_support(app, make_user, login_as):
+    psych = make_user('psych', role='psychologist')
+    s = login_as(make_user('100000000001'))
+    resp = s.post(f'/messages/{psych.id}/anonymous', {'content': 'Хочу умереть'}, follow_redirects=True)
+    assert 'телефон доверия 150' in resp.get_data(as_text=True)
+
+
+def test_remind_group_sends_once_to_not_passed(app, make_user, login_as):
+    psych = make_user('psych', role='psychologist')
+    test = make_scale_test(psych)
+    passed = make_user('100000000001', group='ИС-21')
+    make_user('100000000002', group='ИС-21')
+    make_user('100000000003', group='ИС-21')
+    make_user('100000000004', group='ПК-31')
+    login_as(passed).post(f'/tests/{test.id}/take', answer_all(test, 0))
+    from models import Group
+    gid = Group.query.filter_by(name='ИС-21').one().id
+    p = login_as(psych)
+    page = p.get(f'/tests/{test.id}/results').get_data(as_text=True)
+    assert 'Ещё не прошли' in page
+    p.post(f'/tests/{test.id}/remind', {'group_id': gid})
+    assert Message.query.count() == 2
+    p.post(f'/tests/{test.id}/remind', {'group_id': gid})
+    assert Message.query.count() == 2  # повтор в течение суток не отправляется
+
+
+def test_today_appointment_banner(app, make_user, login_as):
+    psych = make_user('psych', role='psychologist')
+    student = make_user('100000000001')
+    now = services.now_local()
+    later = now + timedelta(minutes=30) if now.hour < 23 else now + timedelta(minutes=5)
+    db.session.add(Appointment(student_id=student.id, psychologist_id=psych.id,
+                               appointment_date=later.replace(second=0, microsecond=0), status='confirmed'))
+    db.session.commit()
+    assert 'Сегодня в' in login_as(student).get('/dashboard').get_data(as_text=True)
+    assert 'Сегодня в' in login_as(psych).get('/dashboard').get_data(as_text=True)
+
+
+def test_backup_command(app, tmp_path, monkeypatch):
+    import os
+    monkeypatch.setattr(app, 'instance_path', str(tmp_path))  # не трогаем настоящую instance/
+    runner = app.test_cli_runner()
+    result = runner.invoke(args=['backup-db', '--keep', '2'])
+    assert result.exit_code == 0, result.output
+    folder = os.path.join(app.instance_path, 'backups')
+    for _ in range(2):
+        import time
+        time.sleep(1.1)
+        runner.invoke(args=['backup-db', '--keep', '2'])
+    copies = [f for f in os.listdir(folder) if f.startswith('psych_help-')]
+    assert len(copies) == 2

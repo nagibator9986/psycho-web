@@ -129,6 +129,33 @@
       </tbody>
     </table>
   </div>
+  {% if not_passed %}
+  <div class="section-title mt-4"><i class="bi bi-person-x"></i> Ещё не прошли</div>
+  <p class="small text-muted">Можно отправить группе напоминание в сообщениях — повторно не чаще раза в сутки.</p>
+  <div class="list-group mb-3">
+    {% for name, entry in not_passed|dictsort %}
+    <details class="list-group-item">
+      <summary class="d-flex justify-content-between align-items-center gap-2">
+        <span><b>{{ name }}</b> <span class="text-muted">— {{ entry.students|length }}</span></span>
+      </summary>
+      <div class="mt-2 d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div class="small">
+          {% for s in entry.students %}<a href="{{ url_for('student_analytics', student_id=s.id) }}" class="text-decoration-none">{{ s.display_name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+        </div>
+        {% if test.is_active %}
+        <form method="post" action="{{ url_for('remind_group', test_id=test.id) }}"
+              data-confirm="Отправить напоминание {{ entry.students|length }} студентам группы {{ name }}?">
+          {{ csrf_field() }}
+          <input type="hidden" name="group_id" value="{{ entry.group.id }}">
+          <button class="btn btn-sm btn-outline-primary"><i class="bi bi-bell"></i> Напомнить</button>
+        </form>
+        {% endif %}
+      </div>
+    </details>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   {% if test.interpretations %}
   <div class="small text-muted mt-2">
     {% for i in test.interpretations %}

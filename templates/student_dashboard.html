@@ -17,6 +17,21 @@
     </div>
 </div>
 
+{% if today_appointments %}
+<div class="alert alert-primary d-flex align-items-center gap-3 mb-4">
+  <i class="bi bi-calendar-event fs-4"></i>
+  <div class="flex-grow-1">
+    {% for a in today_appointments %}
+      <div><b>Сегодня в {{ a.appointment_date|when('%H:%M') }}</b> — встреча
+        {% if get_current_user().role == 'psychologist' %}со студентом {{ a.student.display_name }}{% else %}с психологом {{ a.psychologist.display_name }}{% endif %}
+        {% if a.purpose %}<span class="text-muted">· {{ a.purpose|truncate(60) }}</span>{% endif %}
+      </div>
+    {% endfor %}
+  </div>
+  <a href="{{ url_for('appointments') }}" class="btn btn-sm btn-light">Встречи</a>
+</div>
+{% endif %}
+
 <div class="row g-3 mb-4">
     <div class="col-6 col-lg-3">{{ stat(available_tests|length, 'новых тестов', 'clipboard-check', '', url_for('tests')) }}</div>
     <div class="col-6 col-lg-3">{{ stat(unread_messages, 'новых сообщений', 'chat-dots', 'info', url_for('messages')) }}</div>
